@@ -3,7 +3,7 @@ import bpy
 bl_info = {
     "name": "烘焙功能菜单",        # 插件名称
     "author": "王思",        # 作者名称
-    "version": (0, 1, 6),                # 插件版本号
+    "version": (0, 1, 7),                # 插件版本号
     "blender": (3, 6, 0),                # Blender 软件最低版本要求
     "location": "Blender插件框架",                # 位置信息
     "description": "洞窝blender烘焙脚本开发",                # 插件描述
@@ -182,11 +182,33 @@ class CustomOperator5(bpy.types.Operator):
 class CustomOperator6(bpy.types.Operator):
     bl_idname = "custom.operator6"  # 操作的唯一标识符
     bl_label = "Custom Operator 6"   # 操作的名称
-
+    bl_description = "将选中对象的漫射材质删除,并新建一个漫射材质槽"
     def execute(self, context):
-        # 在这里编写第三个按钮的操作逻辑
-        print("Custom Operator 6 executed")
+        # 遍历每个选中的对象
+        for obj in bpy.context.selected_objects:
+            # 遍历每个材质槽
+            for slot in obj.material_slots:
+                material = slot.material
+                # 检查材质是否存在且不含有 "glass" 或 "mirror" 关键字
+                if material and ("glass" not in material.name.lower() and "mirror" not in material.name.lower()):
+                    # 删除材质槽中的材质
+                    bpy.data.materials.remove(material)
+
+                    # 创建新的材质
+                    new_material = bpy.data.materials.new(name=obj.name + "_mt")
+
+                    # 如果物体已经存在材质槽，则将新材质插入到第一个位置
+                    if obj.material_slots:
+                        obj.material_slots[0].material = new_material
+                    # 否则，创建一个新的材质槽并将新材质放置其中
+                    else:
+                        bpy.ops.object.material_slot_add()
+                        obj.material_slots[0].material = new_material
+
+        print("操作完成")
+        print("Custom Operator 5 executed")
         return {'FINISHED'}
+
 # 第七个按钮的操作类
 class CustomOperator7(bpy.types.Operator):
     bl_idname = "custom.operator7"  # 操作的唯一标识符
@@ -212,7 +234,7 @@ class CustomPanel(bpy.types.Panel):
         layout.operator("custom.operator3", text="合并同父网格")
         layout.operator("custom.operator4", text="删除第二UV")
         layout.operator("custom.operator5", text="添加bakeUV")
-        layout.operator("custom.operator6", text="暂存")
+        layout.operator("custom.operator6", text="自动化优化材质")
         layout.operator("custom.operator7", text="暂存")
 
 # 注册操作和面板类

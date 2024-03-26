@@ -126,10 +126,10 @@ class CustomOperator3(bpy.types.Operator):
 class CustomOperator4(bpy.types.Operator):
     bl_idname = "custom.operator4"  # 操作的唯一标识符
     bl_label = "Custom Operator 4"   # 操作的名称
-    bl_description = "遍历所有对象,删除第二个UV"
+    bl_description = "遍历所有对象,删除第二个和后面所有的UV"
     def execute(self, context):
         # 在这里编写第三个按钮的操作逻辑
-        def remove_second_uv():
+        def remove_second_and_subsequent_uv():
             # 获取场景中的所有对象
             all_objects = bpy.data.objects
             
@@ -141,21 +141,41 @@ class CustomOperator4(bpy.types.Operator):
                     mesh = obj.data
                     # 检查对象是否有多个 UV 图层
                     if len(mesh.uv_layers) > 1:
-                        # 删除第二个 UV 图层
-                        uv_layer_to_remove = mesh.uv_layers[1]
-                        mesh.uv_layers.remove(uv_layer_to_remove)
-                        print("已删除", obj.name, "的第二个 UV 图层")
-        # 执行函数以删除第二个 UV 图层
-        remove_second_uv()
+                        # 从第二个 UV 图层开始删除，直到只剩下一个
+                        for i in range(len(mesh.uv_layers) - 1, 0, -1):
+                            uv_layer_to_remove = mesh.uv_layers[i]
+                            mesh.uv_layers.remove(uv_layer_to_remove)
+                        print("已删除", obj.name, "的第二个及其后的所有 UV 图层")
+
+        # 执行函数以删除第二个及其后的所有 UV 图层
+        remove_second_and_subsequent_uv()
         print("Custom Operator 4 executed")
         return {'FINISHED'}
 # 第五个按钮的操作类
 class CustomOperator5(bpy.types.Operator):
     bl_idname = "custom.operator5"  # 操作的唯一标识符
     bl_label = "Custom Operator 5"   # 操作的名称
-
+    bl_description = "将选中的对象添加bakeUV"
     def execute(self, context):
         # 在这里编写第三个按钮的操作逻辑
+# 获取当前场景
+        scene = bpy.context.scene
+
+        # 获取当前选中的对象
+        selected_objects = bpy.context.selected_objects
+
+        # 遍历每个选中的对象
+        for obj in selected_objects:
+            # 检查对象是否是网格对象
+            if obj.type == 'MESH':
+                # 创建一个新的 UV 贴图
+                uv_layer = obj.data.uv_layers.new(name="bakeUV")
+                # 选择第二个 UV 图层
+                obj.data.uv_layers.active_index = 1
+            else:
+                print("对象", obj.name, "不是网格对象，无法添加 UV 贴图。")
+        # 提示用户操作完成
+        print("已添加名为 'bakeUV' 的新 UV 贴图，并选择第二个 UV 图层。")
         print("Custom Operator 5 executed")
         return {'FINISHED'}
 # 第六个按钮的操作类
@@ -191,7 +211,7 @@ class CustomPanel(bpy.types.Panel):
         layout.operator("custom.operator2", text="删除bakeNode节点")
         layout.operator("custom.operator3", text="合并同父网格")
         layout.operator("custom.operator4", text="删除第二UV")
-        layout.operator("custom.operator5", text="暂存")
+        layout.operator("custom.operator5", text="添加bakeUV")
         layout.operator("custom.operator6", text="暂存")
         layout.operator("custom.operator7", text="暂存")
 

@@ -3,7 +3,7 @@ import bpy
 bl_info = {
     "name": "烘焙功能菜单",        # 插件名称
     "author": "王思",        # 作者名称
-    "version": (0, 1, 7),                # 插件版本号
+    "version": (0, 2, 0),                # 插件版本号
     "blender": (3, 6, 0),                # Blender 软件最低版本要求
     "location": "Blender插件框架",                # 位置信息
     "description": "洞窝blender烘焙脚本开发",                # 插件描述
@@ -102,7 +102,8 @@ class CustomOperator3(bpy.types.Operator):
             # 如果只有一个网格对象，则清除父级并保持变换结果
             if len(meshes) == 1:
                 mesh = meshes[0]
-                #mesh.matrix_world = obj.matrix_world @ mesh.matrix_world  # 应用父级的变换
+                if bpy.context.scene.my_bool_prop:
+                    mesh.matrix_world = obj.matrix_world @ mesh.matrix_world  # 应用父级的变换
                 bpy.ops.object.select_all(action='DESELECT')
                 mesh.select_set(True)
                 bpy.context.view_layer.objects.active = mesh
@@ -112,7 +113,8 @@ class CustomOperator3(bpy.types.Operator):
             bpy.ops.object.select_all(action='DESELECT')
             for mesh in meshes:
                 mesh.select_set(True)
-                # mesh.matrix_world = obj.matrix_world @ mesh.matrix_world  # 应用父级的变换
+                if bpy.context.scene.my_bool_prop:
+                    mesh.matrix_world = obj.matrix_world @ mesh.matrix_world  # 应用父级的变换
             bpy.context.view_layer.objects.active = meshes[0]
             bpy.ops.object.join()
             bpy.context.active_object.parent = None  # 清除父级
@@ -218,6 +220,8 @@ class CustomOperator7(bpy.types.Operator):
         # 在这里编写第三个按钮的操作逻辑
         print("Custom Operator 7 executed")
         return {'FINISHED'}
+
+
 # 定义一个面板类
 class CustomPanel(bpy.types.Panel):
     bl_idname = "烘焙菜单面板"  # 面板的唯一标识符
@@ -231,6 +235,8 @@ class CustomPanel(bpy.types.Panel):
         # 添加按钮到面板中，并为每个按钮指定相应的操作
         layout.operator("custom.operator1", text="添加bakeNode节点")
         layout.operator("custom.operator2", text="删除bakeNode节点")
+        # 添加一个布尔属性
+        layout.prop(context.scene, "my_bool_prop", text="合并时保持应用父级位置")
         layout.operator("custom.operator3", text="合并同父网格")
         layout.operator("custom.operator4", text="删除第二UV")
         layout.operator("custom.operator5", text="添加bakeUV")
@@ -247,6 +253,13 @@ def register():
     bpy.utils.register_class(CustomOperator6)
     bpy.utils.register_class(CustomOperator7)
     bpy.utils.register_class(CustomPanel)
+    bpy.types.Scene.my_bool_prop = bpy.props.BoolProperty(name="my_bool_prop", description="合并后是否应用父级,如何合并错位可以选择应用", default=False)
+
+    # # 调用单选框并检查其状态
+    # if bpy.context.scene.my_bool_prop:
+    #     print("单选框已勾选")
+    # else:
+    #     print("单选框未勾选")
 
 # 注销操作和面板类
 def unregister():
@@ -258,6 +271,7 @@ def unregister():
     bpy.utils.unregister_class(CustomOperator6)
     bpy.utils.unregister_class(CustomOperator7)
     bpy.utils.unregister_class(CustomPanel)
+    del bpy.types.Scene.my_bool_prop
 
 # 测试代码
 if __name__ == "__main__":

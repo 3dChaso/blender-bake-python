@@ -3,7 +3,7 @@ import bpy
 bl_info = {
     "name": "烘焙功能菜单",        # 插件名称
     "author": "王思",        # 作者名称
-    "version": (0, 2, 0),                # 插件版本号
+    "version": (0, 2, 1),                # 插件版本号
     "blender": (3, 6, 0),                # Blender 软件最低版本要求
     "location": "Blender插件框架",                # 位置信息
     "description": "洞窝blender烘焙脚本开发",                # 插件描述
@@ -102,22 +102,25 @@ class CustomOperator3(bpy.types.Operator):
             # 如果只有一个网格对象，则清除父级并保持变换结果
             if len(meshes) == 1:
                 mesh = meshes[0]
-                if bpy.context.scene.my_bool_prop:
-                    mesh.matrix_world = obj.matrix_world @ mesh.matrix_world  # 应用父级的变换
+                #mesh.matrix_world = obj.matrix_world @ mesh.matrix_world  # 应用父级的变换
                 bpy.ops.object.select_all(action='DESELECT')
                 mesh.select_set(True)
                 bpy.context.view_layer.objects.active = mesh
-                bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')  # 清除父级并保持变换结果
+                if bpy.context.scene.my_bool_prop: 
+                    # bpy.context.active_object.parent = None
+                    bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')  # 清除父级并保持变换结果
                 return
             # 如果有多个网格对象，则合并网格并清除父级
             bpy.ops.object.select_all(action='DESELECT')
             for mesh in meshes:
                 mesh.select_set(True)
-                if bpy.context.scene.my_bool_prop:
-                    mesh.matrix_world = obj.matrix_world @ mesh.matrix_world  # 应用父级的变换
+                #mesh.matrix_world = obj.matrix_world @ mesh.matrix_world  # 应用父级的变换
             bpy.context.view_layer.objects.active = meshes[0]
             bpy.ops.object.join()
-            bpy.context.active_object.parent = None  # 清除父级
+            if bpy.context.scene.my_bool_prop:
+                # bpy.context.active_object.parent = None
+                bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')  # 清除父级并保持变换结果
+            # bpy.context.active_object.parent = None  # 清除父级#####################两种清除方法不一样，存疑？？？？
         # 遍历场景中的所有对象
         for obj in bpy.context.scene.objects:
             merge_meshes_and_clear_parent(obj)
@@ -253,7 +256,7 @@ def register():
     bpy.utils.register_class(CustomOperator6)
     bpy.utils.register_class(CustomOperator7)
     bpy.utils.register_class(CustomPanel)
-    bpy.types.Scene.my_bool_prop = bpy.props.BoolProperty(name="my_bool_prop", description="合并后是否应用父级,如何合并错位可以选择应用", default=False)
+    bpy.types.Scene.my_bool_prop = bpy.props.BoolProperty(name="my_bool_prop", description="合并后是否应用父级,如何合并错位可以选择应用", default=True)
 
     # # 调用单选框并检查其状态
     # if bpy.context.scene.my_bool_prop:

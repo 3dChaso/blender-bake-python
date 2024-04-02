@@ -470,14 +470,22 @@ class CustomOperator7(bpy.types.Operator):
                 if image.name == image_name:  
                     # 构造完整的图片路径  
                     file_path = os.path.join(output_folder, f"{ObjName}.png")  
-                    
-                    # 另存图片资源到文件  
+                    try:
+                        # 切换到图像编辑器上下文
+                        bpy.context.area.type = 'IMAGE_EDITOR'
+                        bpy.context.area.spaces.active.image = image
 
-                    image.filepath_raw = file_path
+                        bpy.ops.image.save_as(save_as_render=True, show_multiview=False, use_multiview=False, filepath=file_path)
+                        print("Image saved successfully to:", file_path)
+                    except Exception as e:
+                        print("Error saving image:", e)
+                    return
+
                     
-                    image.save()
-                    print(f"图片资源 {image_name} 已另存为: {file_path}")
-                    return  
+
+                    # image.save()
+                    # print(f"图片资源 {image_name} 已另存为: {file_path}")
+                    # return  
             
             print(f"未找到名为 {image_name} 的图片资源。")  
 

@@ -104,7 +104,7 @@ class CustomOperator1(bpy.types.Operator):
 class CustomOperator2(bpy.types.Operator):
     bl_idname = "custom.operator2"  # 操作的唯一标识符
     bl_label = "Custom Operator 2"   # 操作的名称
-    bl_description = "删除工程中bakeNode节点"
+    bl_description = "删除工程中bakeNode节点和图像资源"
     def execute(self, context):
         # 获取场景中所有的材质
         materials = bpy.data.materials
@@ -128,6 +128,10 @@ class CustomOperator2(bpy.types.Operator):
                 # 删除所有名为“bakeNode”的节点
                 for node in nodes_to_remove:
                     node_tree.nodes.remove(node)      
+        # 删除贴图资源
+        for img in bpy.data.images:
+         if "bake1024" in img.name or "bake2048" in img.name or "bake4096" in img.name:
+            bpy.data.images.remove(img)
         # 在这里编写第二个按钮的操作逻辑
         print("Custom Operator 2 executed")
         return {'FINISHED'}
@@ -402,7 +406,6 @@ class CustomOperator7(bpy.types.Operator):
     def execute(self, context):
         # 设置渲染引擎为 Cycles
         bpy.context.scene.render.engine = 'CYCLES'
-
         # 设置渲染设备为 GPU
         bpy.context.preferences.addons['cycles'].preferences.compute_device_type = 'CUDA'
         #bpy.context.preferences.addons['cycles'].preferences.devices[0].use = True
@@ -452,7 +455,11 @@ class CustomOperator7(bpy.types.Operator):
 
         output_folder = r"D:\bakeTemp"  
         # 遍历场景中的所有网格物体  
-
+        i = 0 #计数
+        SCenemesh = 0 #场景模型数量
+        for obj in bpy.context.scene.objects:   
+            if obj.type == 'MESH':  
+                SCenemesh = SCenemesh + 1
         def saveBakeImge(image_name, output_folder,ObjName):  
             # 确保输出文件夹存在  
             if not os.path.exists(output_folder):  
@@ -469,7 +476,7 @@ class CustomOperator7(bpy.types.Operator):
                     image.filepath_raw = file_path
                     
                     image.save()
-                    print(f"图片资源 {image_name} 已另存为: {file_path}")  
+                    print(f"图片资源 {image_name} 已另存为: {file_path}")
                     return  
             
             print(f"未找到名为 {image_name} 的图片资源。")  
@@ -485,7 +492,9 @@ class CustomOperator7(bpy.types.Operator):
                 print(f"对象 {bakeImageSize} 图片大小")
                 bpy.ops.object.bake(save_mode='EXTERNAL', use_cage=False)  
                 # 保存烘焙后的图像  
-                saveBakeImge(bakeImageSize,output_folder,ObjName)  
+                saveBakeImge(bakeImageSize,output_folder,ObjName)
+                i = i + 1  
+                print("进度:["+str(i)+"/"+str(SCenemesh)+"]")
                 # 取消选中当前物体，为下一个物体做准备  
                 obj.select_set(False)  
 

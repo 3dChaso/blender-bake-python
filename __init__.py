@@ -1,9 +1,13 @@
 import bpy
-
+import math
+from math import inf
+import time
+import os
+from .util import *
 bl_info = {
     "name": "烘焙功能菜单",        # 插件名称
     "author": "王思",        # 作者名称
-    "version": (0, 2, 1),                # 插件版本号
+    "version": (0, 3, 1),                # 插件版本号
     "blender": (3, 6, 0),                # Blender 软件最低版本要求
     "location": "Blender插件框架",                # 位置信息
     "description": "洞窝blender烘焙脚本开发",                # 插件描述
@@ -17,38 +21,83 @@ bl_info = {
 class CustomOperator1(bpy.types.Operator):
     bl_idname = "custom.operator1"  # 操作的唯一标识符
     bl_label = "Custom Operator 1"   # 操作的名称
-    bl_description = "搜索工程中是否有“bake”的图像资源,如果不存在则创建一个,创建的节点bakeNode并激活"
+    bl_description = "根据模型面积添加烘焙节点使用对应大小图像"
     def execute(self, context):
+        def dulihua():
+            for obj in bpy.context.scene.objects:   
+                #遍历所有模型使其独立化
+                for obj in bpy.data.objects:
+                    # 检查对象是否为模型对象
+                    if obj.type == 'MESH':
+                        # 选择对象
+                        bpy.context.view_layer.objects.active = obj
+                        bpy.ops.object.select_all(action='DESELECT')
+                        obj.select_set(True)
+                        # 将对象的数据、材质等设为单一用户
+                        bpy.ops.object.make_single_user(object=True, obdata=True, material=True, animation=False, obdata_animation=False)
+                print ("独立化完毕")
+                return
+        def yingyongbianhuan():
+            for obj in bpy.context.scene.objects:   
+                #遍历所有模型使应用全部变换
+                for obj in bpy.data.objects:
+                    # 检查对象是否为模型对象
+                    if obj.type == 'MESH':
+                        # 选择对象
+                        bpy.context.view_layer.objects.active = obj
+                        bpy.ops.object.select_all(action='DESELECT')
+                        obj.select_set(True)
+                        # 将对象的数据、材质等设为单一用户
+                        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True) #应用全部变换
+                print ("应用变换完毕")
+                return
+        dulihua()
+        yingyongbianhuan()
         # 图像资源名称
-        image_name = "bake"
-        if image_name not in bpy.data.images:
-            bpy.ops.image.new(name=image_name, width=4096, height=4096)
-         # 获取场景中所有的材质
-        materials = bpy.data.materials
-        # 循环遍历所有的材质
-        for material in materials:
-            # 创建一个新的节点树
-            material.use_nodes = True
-            node_tree = material.node_tree
-            
-            # 检查是否已经存在名为“bakeNode”的节点
-            bake_node = node_tree.nodes.get("bakeNode")
-            
-            if not bake_node:
-                # 创建一个新的图像纹理节点
-                texture_node = node_tree.nodes.new('ShaderNodeTexImage')
-                
-                # 将新创建的节点命名为“bakeNode”
-                texture_node.name = "bakeNode"
+        image1K_name = "bake1024"
+        image2K_name = "bake2048"
+        image4K_name = "bake4096"
+        if image1K_name not in bpy.data.images:
+            bpy.ops.image.new(name=image1K_name, width=1024, height=1024)
+        if image2K_name not in bpy.data.images:
+            bpy.ops.image.new(name=image2K_name, width=2048, height=2048)
+        if image4K_name not in bpy.data.images:
+            bpy.ops.image.new(name=image4K_name, width=4096, height=4096)
 
-                # 获取图像资源
-                image = bpy.data.images.get(image_name)
-                if image:
-                    # 设置图像节点的图像
-                    texture_node.image = image
-                    
-                    # 激活节点
-                    node_tree.nodes.active = texture_node
+
+        # 获取模型面积
+        def get_model_area(obj):
+            return sum(face.area for face in obj.data.polygons)
+
+        # 遍历所有模型
+        for obj in bpy.context.scene.objects:
+            if obj.type == 'MESH':
+                model_area = get_model_area(obj)
+            for slot in obj.material_slots:
+                        material = slot.material
+                        if material:
+                            nodes = material.node_tree.nodes
+                            has_bake_node = False
+                            
+                            # 检查材质中是否存在名为 "bakeNode" 的节点
+                            for node in nodes:
+                                if node.type == 'TEX_IMAGE' and node.name == "bakeNode":
+                                    has_bake_node = True
+                                    break
+                            # 如果不存在 "bakeNode" 节点，则创建并设置图像资源
+                            if not has_bake_node:
+                                bake_node = nodes.new('ShaderNodeTexImage')
+                                bake_node.name = "bakeNode"
+                                if 0 < model_area <= 0.5:
+                                    bake_node.image = bpy.data.images.get("bake1024")
+                                    print("使用了bake1024")
+                                elif 0.5 < model_area <= 10:
+                                    bake_node.image = bpy.data.images.get("bake2048")
+                                    print("使用了bake2048")  
+                                else:
+                                    bake_node.image = bpy.data.images.get("bake4096")
+                                    print("使用了bake4096")    
+                                nodes.active = bake_node
         print("Custom Operator 2 executed")
         return {'FINISHED'}
 # 第二个按钮的操作类
@@ -87,51 +136,97 @@ class CustomOperator2(bpy.types.Operator):
 class CustomOperator3(bpy.types.Operator):
     bl_idname = "custom.operator3"  # 操作的唯一标识符
     bl_label = "Custom Operator 3"   # 操作的名称
-    bl_description = "遍历所有对象,合并它的子级并解除父级"
-
+    bl_description = "遍历所有对象,合并它的子级并解除父级,注意不要放在合集里"
     def execute(self, context):
-        def merge_meshes_and_clear_parent(obj):
-            # 如果对象没有子级，则直接返回
-            if not obj.children:
-                return
-            # 获取子级中的所有网格对象
-            meshes = [child for child in obj.children if child.type == 'MESH']
-            # 如果没有网格对象，则遍历下一个对象
-            if not meshes:
-                return
-            # 如果只有一个网格对象，则清除父级并保持变换结果
-            if len(meshes) == 1:
-                mesh = meshes[0]
-                #mesh.matrix_world = obj.matrix_world @ mesh.matrix_world  # 应用父级的变换
-                bpy.ops.object.select_all(action='DESELECT')
-                mesh.select_set(True)
-                bpy.context.view_layer.objects.active = mesh
-                if bpy.context.scene.my_bool_prop: 
-                    # bpy.context.active_object.parent = None
-                    bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')  # 清除父级并保持变换结果
-                return
-            # 如果有多个网格对象，则合并网格并清除父级
-            bpy.ops.object.select_all(action='DESELECT')
-            for mesh in meshes:
-                mesh.select_set(True)
-                #mesh.matrix_world = obj.matrix_world @ mesh.matrix_world  # 应用父级的变换
-            bpy.context.view_layer.objects.active = meshes[0]
-            bpy.ops.object.join()
-            if bpy.context.scene.my_bool_prop:
-                # bpy.context.active_object.parent = None
-                bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')  # 清除父级并保持变换结果
-            # bpy.context.active_object.parent = None  # 清除父级#####################两种清除方法不一样，存疑？？？？
-        # 遍历场景中的所有对象
-        for obj in bpy.context.scene.objects:
-            merge_meshes_and_clear_parent(obj)
-        # 在这里编写第三个按钮的操作逻辑
+      # 检查是否存在名为“软装”的集合
+        def check_collection_existence(collection_name):
+            for collection in bpy.data.collections:
+                if collection.name == collection_name:
+                    return True
+            return False
+
+        # 创建名为“软装”的集合
+        def create_collection(collection_name):
+            new_collection = bpy.data.collections.new(collection_name)
+            bpy.context.scene.collection.children.link(new_collection)
+        bpy.ops.object.select_all(action='DESELECT')
+        # 将对象移动到指定的集合中
+        def move_object_to_collection(obj, collection_name):
+            if check_collection_existence(collection_name):
+                collection = bpy.data.collections.get(collection_name)
+                if collection:
+                    collection.objects.link(obj)
+
+        collection_name = "软装"
+        if not check_collection_existence(collection_name):
+            create_collection(collection_name)
+            print(f"已创建名为'{collection_name}'的集合。")
+        else:
+            print(f"名为'{collection_name}'的集合已存在。")
+
+        # 遍历所有的对象
+        for obj in bpy.data.objects:
+            # 如果当前对象有子级
+            if obj.children:
+                # 判断是否有模型对象
+                has_mesh_children = False
+                for child in obj.children:
+                    if child.type == 'MESH':
+                        has_mesh_children = True
+                        break
+                
+                # 如果有模型对象，选中所有子级并设置活动对象为第一个子对象
+                if has_mesh_children:
+                    bpy.context.view_layer.objects.active = obj.children[0]  # 将第一个子对象设为活动对象
+                    for child in obj.children:
+                        if child.type == 'MESH':
+                            child.select_set(True)  # 选中子级模型对象
+                    obj.select_set(False)  # 取消选中父级对象
+                    
+                    # 合并选中的模型对象
+                    bpy.ops.object.join()
+                    
+                    # 重命名合并后的对象为父级的名称
+                    merged_obj = bpy.context.active_object
+                    merged_obj.name = obj.name
+                    
+                    # 保持父级对象的变换
+                    bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')  # 清除父级并保持变换结果 
+                    
+                    # 将合并后的对象移动到“软装”集合中
+                    selct_objs_move_to_collection(collection_name)
+                    #move_object_to_collection(merged_obj, collection_name)
+                    
+                    bpy.ops.object.select_all(action='DESELECT')
+        def delete_empty_objects():
+            # 获取当前场景中的所有对象
+            objects = bpy.context.scene.objects
+            
+            # 记录删除的对象数量
+            deleted_count = 0
+            
+            # 循环遍历所有对象
+            for obj in objects:
+                # 检查对象是否没有网格数据且没有子对象
+                if obj.type == 'EMPTY' and not obj.children and not obj.data:
+                    # 删除空对象
+                    bpy.data.objects.remove(obj, do_unlink=True)
+                    deleted_count += 1
+            
+            # 如果删除了至少一个对象，则继续执行删除操作
+            if deleted_count > 0:
+                delete_empty_objects()
+
+        # 调用函数以删除所有空对象
+        delete_empty_objects()
+            
         print("Custom Operator 3 executed")
         return {'FINISHED'}
 # 第四个按钮的操作类
 class CustomOperator4(bpy.types.Operator):
     bl_idname = "custom.operator4"  # 操作的唯一标识符
     bl_label = "Custom Operator 4"   # 操作的名称
-    bl_description = "遍历所有对象,删除第二个和后面所有的UV"
+    bl_description = "遍历所有对象,删除第二个和后面所有的UV,并添加bakeUV"
     def execute(self, context):
         # 在这里编写第三个按钮的操作逻辑
         def remove_second_and_subsequent_uv():
@@ -151,36 +246,121 @@ class CustomOperator4(bpy.types.Operator):
                             uv_layer_to_remove = mesh.uv_layers[i]
                             mesh.uv_layers.remove(uv_layer_to_remove)
                         print("已删除", obj.name, "的第二个及其后的所有 UV 图层")
-
+                    # 创建一个新的 UV 贴图
+                    uv_layer = obj.data.uv_layers.new(name="bakeUV")
+                    # 选择第二个 UV 图层
+                    obj.data.uv_layers.active_index = 1
         # 执行函数以删除第二个及其后的所有 UV 图层
         remove_second_and_subsequent_uv()
+        # 获取名为“硬装”的合集
+        collection = bpy.data.collections.get("硬装")
+        bpy.ops.object.mode_set(mode='OBJECT')
+        if collection:
+            # 获取默认的场景对象
+            scene = bpy.context.scene
+            view_layer = bpy.context.view_layer
+
+            # 遍历合集中的所有物体
+            for obj in collection.objects:
+                # 清除之前的选择和活动对象
+                bpy.ops.object.select_all(action='DESELECT')
+                view_layer.objects.active = None
+
+                # 选择当前物体
+                obj.select_set(True)
+                view_layer.objects.active = obj
+
+                # 进入编辑模式执行UV投射
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.uv.smart_project(angle_limit=66, island_margin=0.001)
+                bpy.ops.object.mode_set(mode='OBJECT')
+        else:
+            print("未找到名为“硬装”的合集")
+
         print("Custom Operator 4 executed")
         return {'FINISHED'}
 # 第五个按钮的操作类
 class CustomOperator5(bpy.types.Operator):
     bl_idname = "custom.operator5"  # 操作的唯一标识符
     bl_label = "Custom Operator 5"   # 操作的名称
-    bl_description = "将选中的对象添加bakeUV"
+    bl_description = "合并硬装的集合[硬],天花板,墙,地板"
     def execute(self, context):
-        # 在这里编写第三个按钮的操作逻辑
-# 获取当前场景
-        scene = bpy.context.scene
+        # 遍历名为“硬”的集合
+        collection_name = "硬装"
+        collection = bpy.data.collections.get(collection_name)
 
-        # 获取当前选中的对象
-        selected_objects = bpy.context.selected_objects
+        if collection:
+            # 初始化计数器
+            ceiling_count = 0
+            floor_count = 0
+            wall_count = 0
+            
+            # 初始化最低点和最高点
+            min_z = inf
+            max_z = -inf
+            
+            # 遍历集合中的每个对象
+            for obj in collection.objects:
+                # 获取对象的最低和最高点
+                vertices = [obj.matrix_world @ v.co for v in obj.data.vertices]
+                min_z = min(min_z, min(v.z for v in vertices))
+                max_z = max(max_z, max(v.z for v in vertices))
+                
+            # 遍历集合中的每个对象
+            ceiling_objects = []
+            floor_objects = []
+            wall_objects = []
+            for obj in collection.objects:
+                # 获取对象的最低和最高点
+                vertices = [obj.matrix_world @ v.co for v in obj.data.vertices]
+                min_height = min(v.z for v in vertices)
+                max_height = max(v.z for v in vertices)
+                
+                # 判断并将对象添加到相应的列表中
+                if max_height < 0.05:
+                    floor_objects.append(obj)
+                elif min_height > 2:
+                    ceiling_objects.append(obj)
+                else:
+                    wall_objects.append(obj)
+            
+            # 合并 Ceiling 对象
+            if ceiling_objects:
+                bpy.ops.object.select_all(action='DESELECT')
+                for obj in ceiling_objects:
+                    obj.select_set(True)
+                bpy.context.view_layer.objects.active = ceiling_objects[0]
+                bpy.ops.object.join()
+                bpy.context.active_object.name = "Ceiling"
+                ceiling_count = len(ceiling_objects)
+            
+            # 合并 Floor 对象
+            if floor_objects:
+                bpy.ops.object.select_all(action='DESELECT')
+                for obj in floor_objects:
+                    obj.select_set(True)
+                bpy.context.view_layer.objects.active = floor_objects[0]
+                bpy.ops.object.join()
+                bpy.context.active_object.name = "Floor"
+                floor_count = len(floor_objects)
+            
+            # 合并 Wall 对象
+            if wall_objects:
+                bpy.ops.object.select_all(action='DESELECT')
+                for obj in wall_objects:
+                    obj.select_set(True)
+                bpy.context.view_layer.objects.active = wall_objects[0]
+                bpy.ops.object.join()
+                bpy.context.active_object.name = "Wall"
+                wall_count = len(wall_objects)
+            
+            # 打印结果
+            print("合并了 %d 个 Ceiling 对象" % ceiling_count)
+            print("合并了 %d 个 Floor 对象" % floor_count)
+            print("合并了 %d 个 Wall 对象" % wall_count)
+        else:
+            print("没有找到名为 '%s' 的集合" % collection_name)
 
-        # 遍历每个选中的对象
-        for obj in selected_objects:
-            # 检查对象是否是网格对象
-            if obj.type == 'MESH':
-                # 创建一个新的 UV 贴图
-                uv_layer = obj.data.uv_layers.new(name="bakeUV")
-                # 选择第二个 UV 图层
-                obj.data.uv_layers.active_index = 1
-            else:
-                print("对象", obj.name, "不是网格对象，无法添加 UV 贴图。")
-        # 提示用户操作完成
-        print("已添加名为 'bakeUV' 的新 UV 贴图，并选择第二个 UV 图层。")
         print("Custom Operator 5 executed")
         return {'FINISHED'}
 # 第六个按钮的操作类
@@ -218,16 +398,147 @@ class CustomOperator6(bpy.types.Operator):
 class CustomOperator7(bpy.types.Operator):
     bl_idname = "custom.operator7"  # 操作的唯一标识符
     bl_label = "Custom Operator 7"   # 操作的名称
-
+    bl_description = "调整渲染设置,遍历渲染图片到D盘bakeTemp目录"
     def execute(self, context):
-        # 在这里编写第三个按钮的操作逻辑
+        # 设置渲染引擎为 Cycles
+        bpy.context.scene.render.engine = 'CYCLES'
+
+        # 设置渲染设备为 GPU
+        bpy.context.preferences.addons['cycles'].preferences.compute_device_type = 'CUDA'
+        #bpy.context.preferences.addons['cycles'].preferences.devices[0].use = True
+
+        # 设置渲染参数
+        bpy.context.scene.cycles.samples = 64
+        bpy.context.scene.cycles.preview_samples = 64
+        bpy.context.scene.cycles.use_denoising = False
+        bpy.context.scene.cycles.preview_denoising = False
+        bpy.context.scene.cycles.seed = 0
+        bpy.context.scene.cycles.blur_glossy = 0.1
+        # 检查并创建目录
+        def create_directory_if_not_exists(directory):
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+        # 创建 bakeTemp 文件夹在 d 盘
+        bake_temp_dir = "D:/bakeTemp"
+        create_directory_if_not_exists(bake_temp_dir)
+
+        def get_active_image_texture_name(material):  
+            if not material.node_tree:  
+                return None  
+            # 获取材质的活动节点  
+            active_node = material.node_tree.nodes.active  
+            if not active_node or not isinstance(active_node, bpy.types.ShaderNodeTexImage):  
+                print("获取尺寸出错")
+                return None    
+            # 获取图片资源名  
+            image = active_node.image  
+            if image:  
+                return image.name
+            print("获取尺寸出错")  
+            return None  
+
+        # 获取选中的对象
+        def getBakeSize():
+            selected_objects = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']  
+            if not selected_objects:  
+                print("没有选中任何网格对象。")  
+            # 遍历选中对象的材质  
+            for obj in selected_objects:  
+                for slot in obj.material_slots:  
+                    material = slot.material  
+                    if material:  
+                        image_name = get_active_image_texture_name(material)  
+                        return(image_name)
+
+        output_folder = r"D:\bakeTemp"  
+        # 遍历场景中的所有网格物体  
+
+        def saveBakeImge(image_name, output_folder,ObjName):  
+            # 确保输出文件夹存在  
+            if not os.path.exists(output_folder):  
+                os.makedirs(output_folder)  
+            
+            # 查找名为image_name的图片资源  
+            for image in bpy.data.images:  
+                if image.name == image_name:  
+                    # 构造完整的图片路径  
+                    file_path = os.path.join(output_folder, f"{ObjName}.png")  
+                    
+                    # 另存图片资源到文件  
+
+                    image.filepath_raw = file_path
+                    
+                    image.save()
+                    print(f"图片资源 {image_name} 已另存为: {file_path}")  
+                    return  
+            
+            print(f"未找到名为 {image_name} 的图片资源。")  
+
+        for obj in bpy.context.scene.objects:   
+            if obj.type == 'MESH':  
+                bpy.ops.object.select_all(action='DESELECT') 
+                obj.select_set(True)
+                ObjName = obj.name
+                print(f"当前选中的mesh是 {ObjName} ")
+                # 开始烘焙  
+                bakeImageSize = getBakeSize()
+                print(f"对象 {bakeImageSize} 图片大小")
+                bpy.ops.object.bake(save_mode='EXTERNAL', use_cage=False)  
+                # 保存烘焙后的图像  
+                saveBakeImge(bakeImageSize,output_folder,ObjName)  
+                # 取消选中当前物体，为下一个物体做准备  
+                obj.select_set(False)  
+
+            else:  
+                print(f"选中的不是网格 {obj.name}")    
+        # 完成后取消所有物体的选中状态  
+        bpy.ops.object.select_all(action='DESELECT')
+
         print("Custom Operator 7 executed")
         return {'FINISHED'}
 
+# 第八个按钮的操作类
+class CustomOperator8(bpy.types.Operator):
+    bl_idname = "custom.operator8"  # 操作的唯一标识符
+    bl_label = "Custom Operator 8"   # 操作的名称
+    bl_description = "遍历所有对象,独立化对象,并重置模型PSR"
+    def execute(self, context):
+        def dulihua():
+            for obj in bpy.context.scene.objects:   
+                #遍历所有模型使其独立化
+                for obj in bpy.data.objects:
+                    # 检查对象是否为模型对象
+                    if obj.type == 'MESH':
+                        # 选择对象
+                        bpy.context.view_layer.objects.active = obj
+                        bpy.ops.object.select_all(action='DESELECT')
+                        obj.select_set(True)
+                        # 将对象的数据、材质等设为单一用户
+                        bpy.ops.object.make_single_user(object=True, obdata=True, material=True, animation=False, obdata_animation=False)
+                print ("独立化完毕")
+                return
+        def yingyongbianhuan():
+            for obj in bpy.context.scene.objects:   
+                #遍历所有模型使应用全部变换
+                for obj in bpy.data.objects:
+                    # 检查对象是否为模型对象
+                    if obj.type == 'MESH':
+                        # 选择对象
+                        bpy.context.view_layer.objects.active = obj
+                        bpy.ops.object.select_all(action='DESELECT')
+                        obj.select_set(True)
+                        # 将对象的数据、材质等设为单一用户
+                        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True) #应用全部变换
+                print ("应用变换完毕")
+                return
+        dulihua()
+        yingyongbianhuan()
+        print("Custom Operator 8 executed")
+        return {'FINISHED'}
 
 # 定义一个面板类
 class CustomPanel(bpy.types.Panel):
-    bl_idname = "烘焙菜单面板"  # 面板的唯一标识符
+    bl_idname = "Q1_PT_bekemenu"  # 面板的唯一标识符前后有字母加_pt_不报错
     bl_label = "功能集合"      # 面板的名称
     bl_space_type = 'VIEW_3D'      # 面板所在的区域
     bl_region_type = 'UI'          # 面板所在的区域类型
@@ -236,15 +547,16 @@ class CustomPanel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         # 添加按钮到面板中，并为每个按钮指定相应的操作
-        layout.operator("custom.operator1", text="添加bakeNode节点")
-        layout.operator("custom.operator2", text="删除bakeNode节点")
+        layout.operator("custom.operator5", text="硬装合并")
         # 添加一个布尔属性
         layout.prop(context.scene, "my_bool_prop", text="合并时保持应用父级位置")
-        layout.operator("custom.operator3", text="合并同父网格")
-        layout.operator("custom.operator4", text="删除第二UV")
-        layout.operator("custom.operator5", text="添加bakeUV")
+        layout.operator("custom.operator3", text="软装合并网格")
+        layout.operator("custom.operator4", text="删除第二UV,添加bakeUV")
+        layout.operator("custom.operator1", text="添加bakeNode节点")
+        layout.operator("custom.operator2", text="删除bakeNode节点")
+        layout.operator("custom.operator7", text="开始遍历烘焙")
         layout.operator("custom.operator6", text="自动化优化材质")
-        layout.operator("custom.operator7", text="暂存")
+        layout.operator("custom.operator8", text="暂存")
 
 # 注册操作和面板类
 def register():
@@ -255,6 +567,7 @@ def register():
     bpy.utils.register_class(CustomOperator5)
     bpy.utils.register_class(CustomOperator6)
     bpy.utils.register_class(CustomOperator7)
+    bpy.utils.register_class(CustomOperator8)
     bpy.utils.register_class(CustomPanel)
     bpy.types.Scene.my_bool_prop = bpy.props.BoolProperty(name="my_bool_prop", description="合并后是否应用父级,如何合并错位可以选择应用", default=True)
 
@@ -273,6 +586,7 @@ def unregister():
     bpy.utils.unregister_class(CustomOperator5)
     bpy.utils.unregister_class(CustomOperator6)
     bpy.utils.unregister_class(CustomOperator7)
+    bpy.utils.unregister_class(CustomOperator8)
     bpy.utils.unregister_class(CustomPanel)
     del bpy.types.Scene.my_bool_prop
 

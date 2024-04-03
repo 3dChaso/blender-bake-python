@@ -15,6 +15,12 @@ bl_info = {
     "tracker_url": "https://www.baidu.com",        # 报告问题链接
     "category": "View",            # 插件分类
 } 
+def get_item_design_id(design_str):
+    design_str_arr = design_str.split(":")
+    return design_str_arr[1]
+
+def get_design(context):
+    return get_item_design_id(context.scene.design_property)
 #bl_idname 必须 xx.xx 的格式，否则会报错。execute() 函数中可以执行自定义指令。
 # 定义一个操作类
 # 第一个按钮的操作类
@@ -287,12 +293,15 @@ class CustomOperator4(bpy.types.Operator):
 class CustomOperator5(bpy.types.Operator):
     bl_idname = "custom.operator5"  # 操作的唯一标识符
     bl_label = "Custom Operator 5"   # 操作的名称
-    bl_description = "合并硬装的集合[硬],天花板,墙,地板"
+    bl_description = "合并硬装的集合[硬装],天花板,墙,地板,并记录方案名在自定义属性里"
     def execute(self, context):
         # 遍历名为“硬”的集合
         collection_name = "硬装"
         collection = bpy.data.collections.get(collection_name)
-
+        projectName = get_design(context)
+        collection["projectName"] = projectName
+        print("方案名为 '%s' 记录在硬装合集自定义属性里" % projectName)
+        #bpy.data.collections.get("硬装")["projectName"]
         if collection:
             # 初始化计数器
             ceiling_count = 0
@@ -404,26 +413,36 @@ class CustomOperator7(bpy.types.Operator):
     bl_label = "Custom Operator 7"   # 操作的名称
     bl_description = "调整渲染设置,遍历渲染图片到D盘bakeTemp目录"
     def execute(self, context):
-        # 设置渲染引擎为 Cycles
-        bpy.context.scene.render.engine = 'CYCLES'
-        # 设置渲染设备为 GPU
-        bpy.context.preferences.addons['cycles'].preferences.compute_device_type = 'CUDA'
-        #bpy.context.preferences.addons['cycles'].preferences.devices[0].use = True
-
-        # 设置渲染参数
-        bpy.context.scene.cycles.samples = 64
-        bpy.context.scene.cycles.preview_samples = 64
-        bpy.context.scene.cycles.use_denoising = False
-        bpy.context.scene.cycles.preview_denoising = False
-        bpy.context.scene.cycles.seed = 0
-        bpy.context.scene.cycles.blur_glossy = 0.1
+        # 获取当前场景的渲染设置  
+        render_settings = bpy.context.scene.render  
+        
+        # 检查并打印渲染引擎  
+        if render_settings.engine == 'CYCLES':  
+            print("当前使用的是Cycles渲染引擎")  
+        else:  
+            bpy.context.scene.my_bool_prop1 = True
+            print("当前使用的不是Cycles渲染引擎,自动覆盖设置")
+        if bpy.context.scene.my_bool_prop1:
+            # 设置渲染引擎为 Cycles
+            bpy.context.scene.render.engine = 'CYCLES'
+            # 设置渲染设备为 GPU
+            bpy.context.preferences.addons['cycles'].preferences.compute_device_type = 'CUDA'
+            #bpy.context.preferences.addons['cycles'].preferences.devices[0].use = True
+            # 设置渲染参数
+            bpy.context.scene.cycles.samples = 1024
+            bpy.context.scene.cycles.preview_samples = 1024
+            bpy.context.scene.cycles.use_denoising = False
+            bpy.context.scene.cycles.preview_denoising = False
+            bpy.context.scene.cycles.seed = 0
+            bpy.context.scene.cycles.samples_threshold = 0.1
+        
         # 检查并创建目录
         def create_directory_if_not_exists(directory):
             if not os.path.exists(directory):
                 os.makedirs(directory)
-        # 创建 bakeTemp 文件夹在 d 盘
-        bake_temp_dir = "D:/bakeTemp"
-        create_directory_if_not_exists(bake_temp_dir)
+        # # 创建 bakeTemp 文件夹在 d 盘
+        # bake_temp_dir = "D:/bakeTemp"
+        # create_directory_if_not_exists(bake_temp_dir)
 
         def get_active_image_texture_name(material):  
             if not material.node_tree:  
@@ -453,7 +472,8 @@ class CustomOperator7(bpy.types.Operator):
                         image_name = get_active_image_texture_name(material)  
                         return(image_name)
 
-        output_folder = r"D:\bakeTemp"  
+        output_folder = "D:/bakeTemp/"+bpy.data.collections.get("硬装")["projectName"]
+        print("输出路径:" + output_folder)
         # 遍历场景中的所有网格物体  
         i = 0 #计数
         SCenemesh = 0 #场景模型数量
@@ -479,39 +499,61 @@ class CustomOperator7(bpy.types.Operator):
                         print("Image saved successfully to:", file_path)
                     except Exception as e:
                         print("Error saving image:", e)
-                    return
-
-                    
-
-                    # image.save()
-                    # print(f"图片资源 {image_name} 已另存为: {file_path}")
-                    # return  
-            
+                    return   
             print(f"未找到名为 {image_name} 的图片资源。")  
-
-        for obj in bpy.context.scene.objects:   
-            if obj.type == 'MESH':  
+        # 记录结束时间  
+        start_time = time.time()   
+        for obj in bpy.context.scene.objects:
+            error_objects = []  # 用于存储出错物体的名称     
+            if obj.type == 'MESH':
+                # 单张时间开始    
+                solostart_time = time.time() 
                 bpy.ops.object.select_all(action='DESELECT') 
                 obj.select_set(True)
                 ObjName = obj.name
                 print(f"当前选中的mesh是 {ObjName} ")
+                # 重置烘焙节点
+                def change_image_source_to_generated(node):  
+                    if node.type == 'TEX_IMAGE' and node.name == 'bakeNode':  
+                        # 如果图像纹理节点没有连接的图像，则无需更改  
+                        if node.image:  
+                            # 将图像属性来源更改为"生成"  
+                            node.image.source = 'GENERATED' 
+                for slot in obj.material_slots:  
+                    if slot.material:  
+                        for node in slot.material.node_tree.nodes:  
+                            change_image_source_to_generated(node) 
+
                 # 开始烘焙  
                 bakeImageSize = getBakeSize()
                 print(f"对象 {bakeImageSize} 图片大小")
-                bpy.ops.object.bake(save_mode='EXTERNAL', use_cage=False)  
-                # 保存烘焙后的图像  
-                saveBakeImge(bakeImageSize,output_folder,ObjName)
-                i = i + 1  
+                try:
+                    bpy.ops.object.bake(save_mode='EXTERNAL', use_cage=False)  
+                    # 保存烘焙后的图像  
+                    saveBakeImge(bakeImageSize,output_folder,ObjName)
+                except Exception as e:
+                    error_objects.append(obj.name)  
+                i = i + 1
+                # 计算单张渲染时间   
+                soloend_time = time.time()
+                solorender_time = soloend_time - solostart_time 
                 print("进度:["+str(i)+"/"+str(SCenemesh)+"]")
+                print(f"单张用时: {solorender_time:.2f} 秒")
                 # 取消选中当前物体，为下一个物体做准备  
                 obj.select_set(False)  
 
             else:  
-                print(f"选中的不是网格 {obj.name}")    
+                print(f"选中的不是网格 {obj.name}")
+            if error_objects:  
+                print(f"烘焙错误对象: {', '.join(error_objects)}") 
         # 完成后取消所有物体的选中状态  
         bpy.ops.object.select_all(action='DESELECT')
-
-        print("Custom Operator 7 executed")
+        # 记录结束时间  
+        end_time = time.time()  
+        # 计算渲染时间（秒）  
+        render_time = end_time - start_time  
+        # 打印渲染时间  
+        print(f"所有对象渲染完毕: {render_time:.2f} 秒","错误数量为:",str(len(error_objects)))
         return {'FINISHED'}
 
 # 第八个按钮的操作类
@@ -520,37 +562,8 @@ class CustomOperator8(bpy.types.Operator):
     bl_label = "Custom Operator 8"   # 操作的名称
     bl_description = "遍历所有对象,独立化对象,并重置模型PSR"
     def execute(self, context):
-        def dulihua():
-            for obj in bpy.context.scene.objects:   
-                #遍历所有模型使其独立化
-                for obj in bpy.data.objects:
-                    # 检查对象是否为模型对象
-                    if obj.type == 'MESH':
-                        # 选择对象
-                        bpy.context.view_layer.objects.active = obj
-                        bpy.ops.object.select_all(action='DESELECT')
-                        obj.select_set(True)
-                        # 将对象的数据、材质等设为单一用户
-                        bpy.ops.object.make_single_user(object=True, obdata=True, material=True, animation=False, obdata_animation=False)
-                print ("独立化完毕")
-                return
-        def yingyongbianhuan():
-            for obj in bpy.context.scene.objects:   
-                #遍历所有模型使应用全部变换
-                for obj in bpy.data.objects:
-                    # 检查对象是否为模型对象
-                    if obj.type == 'MESH':
-                        # 选择对象
-                        bpy.context.view_layer.objects.active = obj
-                        bpy.ops.object.select_all(action='DESELECT')
-                        obj.select_set(True)
-                        # 将对象的数据、材质等设为单一用户
-                        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True) #应用全部变换
-                print ("应用变换完毕")
-                return
-        dulihua()
-        yingyongbianhuan()
-        print("Custom Operator 8 executed")
+        output_folder = "D:/bakeTemp/" + get_design(context) 
+        print("输出路径:" + output_folder)
         return {'FINISHED'}
 
 # 定义一个面板类
@@ -564,16 +577,17 @@ class CustomPanel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         # 添加按钮到面板中，并为每个按钮指定相应的操作
-        layout.operator("custom.operator5", text="硬装合并")
+        layout.operator("custom.operator5", text="硬装合并记录方案名")
         # 添加一个布尔属性
-        layout.prop(context.scene, "my_bool_prop", text="合并时保持应用父级位置")
+        #layout.prop(context.scene, "my_bool_prop", text="合并时保持应用父级位置")
         layout.operator("custom.operator3", text="软装合并网格")
         layout.operator("custom.operator4", text="删除第二UV,添加bakeUV")
         layout.operator("custom.operator1", text="添加bakeNode节点")
         layout.operator("custom.operator2", text="删除bakeNode节点")
+        layout.prop(context.scene, "my_bool_prop1", text="覆盖渲染设置")
         layout.operator("custom.operator7", text="开始遍历烘焙")
         layout.operator("custom.operator6", text="自动化优化材质")
-        layout.operator("custom.operator8", text="暂存")
+        layout.operator("custom.operator8", text="获取方案名")
 
 # 注册操作和面板类
 def register():
@@ -586,7 +600,8 @@ def register():
     bpy.utils.register_class(CustomOperator7)
     bpy.utils.register_class(CustomOperator8)
     bpy.utils.register_class(CustomPanel)
-    bpy.types.Scene.my_bool_prop = bpy.props.BoolProperty(name="my_bool_prop", description="合并后是否应用父级,如何合并错位可以选择应用", default=True)
+    #bpy.types.Scene.my_bool_prop = bpy.props.BoolProperty(name="my_bool_prop", description="合并后是否应用父级,如何合并错位可以选择应用", default=True)
+    bpy.types.Scene.my_bool_prop1 = bpy.props.BoolProperty(name="my_bool_prop1", description="是否覆盖当前场景的渲染设置", default=True)
 
     # # 调用单选框并检查其状态
     # if bpy.context.scene.my_bool_prop:
@@ -605,7 +620,8 @@ def unregister():
     bpy.utils.unregister_class(CustomOperator7)
     bpy.utils.unregister_class(CustomOperator8)
     bpy.utils.unregister_class(CustomPanel)
-    del bpy.types.Scene.my_bool_prop
+    #del bpy.types.Scene.my_bool_prop
+    del bpy.types.Scene.my_bool_prop1
 
 # 测试代码
 if __name__ == "__main__":

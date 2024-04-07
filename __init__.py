@@ -23,7 +23,7 @@ def get_design(context):
     return get_item_design_id(context.scene.design_property)
 #bl_idname 必须 xx.xx 的格式，否则会报错。execute() 函数中可以执行自定义指令。
 # 定义一个操作类
-# 第一个按钮的操作类
+# 第一个按钮的操作类添加烘焙节点
 class CustomOperator1(bpy.types.Operator):
     bl_idname = "custom.operator1"  # 操作的唯一标识符
     bl_label = "Custom Operator 1"   # 操作的名称
@@ -124,7 +124,7 @@ class CustomOperator1(bpy.types.Operator):
                                 nodes.active = bake_node
         print("Custom Operator 2 executed")
         return {'FINISHED'}
-# 第二个按钮的操作类
+# 第二个按钮的操作类删除节点
 class CustomOperator2(bpy.types.Operator):
     bl_idname = "custom.operator2"  # 操作的唯一标识符
     bl_label = "Custom Operator 2"   # 操作的名称
@@ -160,7 +160,7 @@ class CustomOperator2(bpy.types.Operator):
         print("Custom Operator 2 executed")
         return {'FINISHED'}
 
-# 第三个按钮的操作类
+# 第三个按钮的操作类合并软装
 class CustomOperator3(bpy.types.Operator):
     bl_idname = "custom.operator3"  # 操作的唯一标识符
     bl_label = "Custom Operator 3"   # 操作的名称
@@ -250,7 +250,7 @@ class CustomOperator3(bpy.types.Operator):
             
         print("Custom Operator 3 executed")
         return {'FINISHED'}
-# 第四个按钮的操作类
+# 第四个按钮的操作类删除二UV
 class CustomOperator4(bpy.types.Operator):
     bl_idname = "custom.operator4"  # 操作的唯一标识符
     bl_label = "Custom Operator 4"   # 操作的名称
@@ -307,7 +307,7 @@ class CustomOperator4(bpy.types.Operator):
 
         print("Custom Operator 4 executed")
         return {'FINISHED'}
-# 第五个按钮的操作类
+# 第五个按钮的操作类合并硬装
 class CustomOperator5(bpy.types.Operator):
     bl_idname = "custom.operator5"  # 操作的唯一标识符
     bl_label = "Custom Operator 5"   # 操作的名称
@@ -394,7 +394,7 @@ class CustomOperator5(bpy.types.Operator):
 
         print("Custom Operator 5 executed")
         return {'FINISHED'}
-# 第六个按钮的操作类
+# 第六个按钮的操作类优化材质
 class CustomOperator6(bpy.types.Operator):
     bl_idname = "custom.operator6"  # 操作的唯一标识符
     bl_label = "Custom Operator 6"   # 操作的名称
@@ -425,7 +425,7 @@ class CustomOperator6(bpy.types.Operator):
         print("Custom Operator 5 executed")
         return {'FINISHED'}
 
-# 第七个按钮的操作类
+# 第七个按钮的操作类遍历烘焙
 class CustomOperator7(bpy.types.Operator):
     bl_idname = "custom.operator7"  # 操作的唯一标识符
     bl_label = "Custom Operator 7"   # 操作的名称
@@ -574,7 +574,7 @@ class CustomOperator7(bpy.types.Operator):
         print(f"所有对象渲染完毕: {render_time:.2f} 秒","错误数量为:",str(len(error_objects)))
         return {'FINISHED'}
 
-# 第八个按钮的操作类
+# 第八个按钮的操作类手动烘焙
 class CustomOperator8(bpy.types.Operator):
     bl_idname = "custom.operator8"  # 操作的唯一标识符
     bl_label = "Custom Operator 8"   # 操作的名称
@@ -702,7 +702,7 @@ class CustomOperator8(bpy.types.Operator):
                 # 计算单张渲染时间   
                 soloend_time = time.time()
                 solorender_time = soloend_time - solostart_time 
-                print("进度:["+str(i)+"/"+str(selected_objects)+"]")
+                print("进度:["+str(i)+"/"+str(len(selected_objects))+"]")
                 print(f"单张用时: {solorender_time:.2f} 秒")
                 # 取消选中当前物体，为下一个物体做准备  
                 obj.select_set(False)  

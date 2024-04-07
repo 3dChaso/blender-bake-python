@@ -60,15 +60,19 @@ class CustomOperator1(bpy.types.Operator):
         dulihua()
         yingyongbianhuan()
         # 图像资源名称
+        Rate = 1
+        image512_name = "bake512"
         image1K_name = "bake1024"
         image2K_name = "bake2048"
         image4K_name = "bake4096"
+        if image512_name not in bpy.data.images:
+            bpy.ops.image.new(name=image512_name, width=512*Rate, height=512*Rate)
         if image1K_name not in bpy.data.images:
-            bpy.ops.image.new(name=image1K_name, width=1024, height=1024)
+            bpy.ops.image.new(name=image1K_name, width=1024*Rate, height=1024*Rate)
         if image2K_name not in bpy.data.images:
-            bpy.ops.image.new(name=image2K_name, width=2048, height=2048)
+            bpy.ops.image.new(name=image2K_name, width=2048*Rate, height=2048*Rate)
         if image4K_name not in bpy.data.images:
-            bpy.ops.image.new(name=image4K_name, width=4096, height=4096)
+            bpy.ops.image.new(name=image4K_name, width=4096*Rate, height=4096*Rate)
 
 
         # 获取模型面积
@@ -94,9 +98,12 @@ class CustomOperator1(bpy.types.Operator):
                             if not has_bake_node:
                                 bake_node = nodes.new('ShaderNodeTexImage')
                                 bake_node.name = "bakeNode"
-                                if 0 < model_area <= 0.5:
+                                if 0 < model_area <= 0.2:
+                                    bake_node.image = bpy.data.images.get("bake512")
+                                    print("使用了bake512")
+                                elif 0.2 < model_area <= 0.5:
                                     bake_node.image = bpy.data.images.get("bake1024")
-                                    print("使用了bake1024")
+                                    print("使用了bake1024")  
                                 elif 0.5 < model_area <= 10:
                                     bake_node.image = bpy.data.images.get("bake2048")
                                     print("使用了bake2048")  
@@ -136,7 +143,7 @@ class CustomOperator2(bpy.types.Operator):
                     node_tree.nodes.remove(node)      
         # 删除贴图资源
         for img in bpy.data.images:
-         if "bake1024" in img.name or "bake2048" in img.name or "bake4096" in img.name:
+         if "bake1024" in img.name or "bake2048" in img.name or "bake4096" in img.name or "bake512" in img.name:
             bpy.data.images.remove(img)
         # 在这里编写第二个按钮的操作逻辑
         print("Custom Operator 2 executed")
@@ -551,9 +558,9 @@ class CustomOperator7(bpy.types.Operator):
         # 记录结束时间  
         end_time = time.time()  
         # 计算渲染时间（秒）  
-        render_time = end_time - start_time  
+        render_time = end_time - start_time 
         # 打印渲染时间  
-        print(f"所有对象渲染完毕: {render_time:.2f} 秒","错误数量为:",str(len(error_objects)))
+        print(f"所有对象渲染完毕: {render_time:.2f / 60} 秒","错误数量为:",{len(error_objects)})
         return {'FINISHED'}
 
 # 第八个按钮的操作类

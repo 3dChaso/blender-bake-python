@@ -52,9 +52,20 @@ class CustomOperator1(bpy.types.Operator):
                         # 选择对象
                         bpy.context.view_layer.objects.active = obj
                         bpy.ops.object.select_all(action='DESELECT')
-                        obj.select_set(True)
+                        obj.select_set(True)                       
                         # 将对象的数据、材质等设为单一用户
+                        if any(s < 0 for s in obj.scale):
+                            FlipNormal = True
+                        else:
+                            FlipNormal = False
+                        # 应用对象变换
                         bpy.ops.object.transform_apply(location=True, rotation=True, scale=True) #应用全部变换
+                        if FlipNormal:
+                            bpy.ops.object.mode_set(mode='EDIT')
+                            bpy.ops.mesh.select_all(action='SELECT')
+                            bpy.ops.mesh.flip_normals()
+                            bpy.ops.object.mode_set(mode='OBJECT')
+                            print("网格法线已翻转")
                 print ("应用变换完毕")
                 return
         dulihua()
@@ -444,9 +455,9 @@ class CustomOperator7(bpy.types.Operator):
             bpy.context.scene.cycles.samples_threshold = 0.1
         
         # 检查并创建目录
-        def create_directory_if_not_exists(directory):
-            if not os.path.exists(directory):
-                os.makedirs(directory)
+        # def create_directory_if_not_exists(directory):
+        #     if not os.path.exists(directory):
+        #         os.makedirs(directory)
         # # 创建 bakeTemp 文件夹在 d 盘
         # bake_temp_dir = "D:/bakeTemp"
         # create_directory_if_not_exists(bake_temp_dir)
@@ -567,12 +578,148 @@ class CustomOperator7(bpy.types.Operator):
 class CustomOperator8(bpy.types.Operator):
     bl_idname = "custom.operator8"  # 操作的唯一标识符
     bl_label = "Custom Operator 8"   # 操作的名称
-    bl_description = "遍历所有对象,独立化对象,并重置模型PSR"
+    bl_description = "调整渲染设置,将选中对象渲染图片到D盘bakeTemp目录"
     def execute(self, context):
-        output_folder = "D:/bakeTemp/" + get_design(context) 
-        print("输出路径:" + output_folder)
-        return {'FINISHED'}
+        # 获取当前场景的渲染设置  
+        render_settings = bpy.context.scene.render  
+        
+        # 检查并打印渲染引擎  
+        if render_settings.engine == 'CYCLES':  
+            print("当前使用的是Cycles渲染引擎")  
+        else:  
+            bpy.context.scene.my_bool_prop1 = True
+            print("当前使用的不是Cycles渲染引擎,自动覆盖设置")
+        if bpy.context.scene.my_bool_prop1:
+            # 设置渲染引擎为 Cycles
+            bpy.context.scene.render.engine = 'CYCLES'
+            # 设置渲染设备为 GPU
+            bpy.context.preferences.addons['cycles'].preferences.compute_device_type = 'CUDA'
+            #bpy.context.preferences.addons['cycles'].preferences.devices[0].use = True
+            # 设置渲染参数
+            bpy.context.scene.cycles.samples = 1024
+            bpy.context.scene.cycles.preview_samples = 1024
+            bpy.context.scene.cycles.use_denoising = False
+            bpy.context.scene.cycles.preview_denoising = False
+            bpy.context.scene.cycles.seed = 0
+            bpy.context.scene.cycles.samples_threshold = 0.1
+        
+        # 检查并创建目录
+        # def create_directory_if_not_exists(directory):
+        #     if not os.path.exists(directory):
+        #         os.makedirs(directory)
+        # # 创建 bakeTemp 文件夹在 d 盘
+        # bake_temp_dir = "D:/bakeTemp"
+        # create_directory_if_not_exists(bake_temp_dir)
 
+        def get_active_image_texture_name(material):  
+            if not material.node_tree:  
+                return None  
+            # 获取材质的活动节点  
+            active_node = material.node_tree.nodes.active  
+            if not active_node or not isinstance(active_node, bpy.types.ShaderNodeTexImage):  
+                print("获取尺寸出错")
+                return None    
+            # 获取图片资源名  
+            image = active_node.image  
+            if image:  
+                return image.name
+            print("获取尺寸出错")  
+            return None  
+
+        # 获取选中的对象
+        def getBakeSize():
+            selected_objects = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']  
+            if not selected_objects:  
+                print("没有选中任何网格对象。")  
+            # 遍历选中对象的材质  
+            for obj in selected_objects:  
+                for slot in obj.material_slots:  
+                    material = slot.material  
+                    if material:  
+                        image_name = get_active_image_texture_name(material)  
+                        return(image_name)
+
+        output_folder = "D:/bakeTemp/"+bpy.data.collections.get("硬装")["projectName"]
+        print("输出路径:" + output_folder)
+        # 遍历场景中的所有网格物体  
+        i = 0 #计数
+        def saveBakeImge(image_name, output_folder,ObjName):  
+            # 确保输出文件夹存在  
+            if not os.path.exists(output_folder):  
+                os.makedirs(output_folder)  
+            
+            # 查找名为image_name的图片资源  
+            for image in bpy.data.images:  
+                if image.name == image_name:  
+                    # 构造完整的图片路径  
+                    file_path = os.path.join(output_folder, f"{ObjName}.png")  
+                    try:
+                        # 切换到图像编辑器上下文
+                        bpy.context.area.type = 'IMAGE_EDITOR'
+                        bpy.context.area.spaces.active.image = image
+
+                        bpy.ops.image.save_as(save_as_render=True, show_multiview=False, use_multiview=False, filepath=file_path)
+                        print("Image saved successfully to:", file_path)
+                    except Exception as e:
+                        print("Error saving image:", e)
+                    return   
+            print(f"未找到名为 {image_name} 的图片资源。")  
+        # 记录结束时间  
+        start_time = time.time()   
+        # 获取当前场景中选中的对象
+        selected_objects = bpy.context.selected_objects
+        for obj in selected_objects:
+            error_objects = []  # 用于存储出错物体的名称     
+            if obj.type == 'MESH':
+                # 单张时间开始    
+                solostart_time = time.time() 
+                bpy.ops.object.select_all(action='DESELECT') 
+                obj.select_set(True)
+                ObjName = obj.name
+                print(f"当前选中的mesh是 {ObjName} ")
+                # 重置烘焙节点
+                def change_image_source_to_generated(node):  
+                    if node.type == 'TEX_IMAGE' and node.name == 'bakeNode':  
+                        # 如果图像纹理节点没有连接的图像，则无需更改  
+                        if node.image:  
+                            # 将图像属性来源更改为"生成"  
+                            node.image.source = 'GENERATED' 
+                for slot in obj.material_slots:  
+                    if slot.material:  
+                        for node in slot.material.node_tree.nodes:  
+                            change_image_source_to_generated(node) 
+
+                # 开始烘焙  
+                bakeImageSize = getBakeSize()
+                print(f"对象 {bakeImageSize} 图片大小")
+                try:
+                    bpy.ops.object.bake(save_mode='EXTERNAL', use_cage=False)  
+                    # 保存烘焙后的图像  
+                    saveBakeImge(bakeImageSize,output_folder,ObjName)
+                except Exception as e:
+                    error_objects.append(obj.name)  
+                i = i + 1
+                # 计算单张渲染时间   
+                soloend_time = time.time()
+                solorender_time = soloend_time - solostart_time 
+                print("进度:["+str(i)+"/"+str(selected_objects)+"]")
+                print(f"单张用时: {solorender_time:.2f} 秒")
+                # 取消选中当前物体，为下一个物体做准备  
+                obj.select_set(False)  
+
+            else:  
+                print(f"选中的不是网格 {obj.name}")
+            if error_objects:  
+                print(f"烘焙错误对象: {', '.join(error_objects)}") 
+        # 完成后取消所有物体的选中状态  
+        bpy.ops.object.select_all(action='DESELECT')
+        # 记录结束时间  
+        end_time = time.time()  
+        # 计算渲染时间（秒）  
+        render_time = end_time - start_time 
+        # 打印渲染时间  
+        print(f"所有对象渲染完毕: {render_time:.2f} 秒","错误数量为:",str(len(error_objects)))
+        return {'FINISHED'}
 # 定义一个面板类
 class CustomPanel(bpy.types.Panel):
     bl_idname = "Q1_PT_bekemenu"  # 面板的唯一标识符前后有字母加_pt_不报错
@@ -593,8 +740,9 @@ class CustomPanel(bpy.types.Panel):
         layout.operator("custom.operator2", text="删除bakeNode节点")
         layout.prop(context.scene, "my_bool_prop1", text="覆盖渲染设置")
         layout.operator("custom.operator7", text="开始遍历烘焙")
+        layout.operator("custom.operator8", text="手动选择烘焙")
         layout.operator("custom.operator6", text="自动化优化材质")
-        layout.operator("custom.operator8", text="获取方案名")
+        
 
 # 注册操作和面板类
 def register():

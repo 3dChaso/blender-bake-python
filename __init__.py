@@ -1,5 +1,5 @@
 import bpy
-import math
+from .quality import *
 from math import inf
 import time
 import os
@@ -7,7 +7,7 @@ from .util import *
 bl_info = {
     "name": "烘焙功能菜单",        # 插件名称
     "author": "王思",        # 作者名称
-    "version": (0, 3, 1),                # 插件版本号
+    "version": (0, 4, 0),                # 插件版本号
     "blender": (3, 6, 0),                # Blender 软件最低版本要求
     "location": "Blender插件框架",                # 位置信息
     "description": "洞窝blender烘焙脚本开发",                # 插件描述
@@ -21,8 +21,38 @@ def get_item_design_id(design_str):
 
 def get_design(context):
     return get_item_design_id(context.scene.design_property)
-#bl_idname 必须 xx.xx 的格式，否则会报错。execute() 函数中可以执行自定义指令。
-# 定义一个操作类
+def render_set(context):
+    # 获取当前场景的渲染设置  
+    render_settings = bpy.context.scene.render  
+    # 读取面板质量设置 
+    qualityLevel = context.scene.my_value
+    # 检查并打印渲染引擎  
+    if render_settings.engine == 'CYCLES':  
+        print("当前使用的是Cycles渲染引擎")  
+    else:  
+        bpy.context.scene.my_bool_prop1 = True
+        print("当前使用的不是Cycles渲染引擎,自动覆盖设置")
+    if bpy.context.scene.my_bool_prop1:#覆盖按钮
+        # 设置渲染引擎为 Cycles
+        bpy.context.scene.render.engine = 'CYCLES'
+        # 设置渲染设备为 GPU
+        bpy.context.preferences.addons['cycles'].preferences.compute_device_type = 'CUDA'
+        if read_qulity_ini(qualityLevel):#覆盖质量分级
+            bpy.context.scene.cycles.samples = INI_samples
+            bpy.context.scene.cycles.preview_samples = INI_preview_samples
+            bpy.context.scene.cycles.use_denoising = INI_use_denoising
+            bpy.context.scene.cycles.preview_denoising = INI_preview_denoising
+            bpy.context.scene.cycles.seed = INI_seed
+            bpy.context.scene.cycles.samples_threshold = INI_samples_threshold
+            print(f"覆盖渲染质量为{qualityLevel}")
+        else:#覆盖默认值
+            bpy.context.scene.cycles.samples = 1024
+            bpy.context.scene.cycles.preview_samples = 1024
+            bpy.context.scene.cycles.use_denoising = False
+            bpy.context.scene.cycles.preview_denoising = False
+            bpy.context.scene.cycles.seed = 0
+            bpy.context.scene.cycles.samples_threshold = 0.1
+            print("使用的是默认值")
 # 第一个按钮的操作类添加烘焙节点
 class CustomOperator1(bpy.types.Operator):
     bl_idname = "custom.operator1"  # 操作的唯一标识符
@@ -71,7 +101,10 @@ class CustomOperator1(bpy.types.Operator):
         dulihua()
         yingyongbianhuan()
         # 图像资源名称
-        Rate = 1
+        if INI_Rate:
+            Rate = INI_Rate
+        else:
+            Rate = 1
         image512_name = "bake512"
         image1K_name = "bake1024"
         image2K_name = "bake2048"
@@ -431,37 +464,7 @@ class CustomOperator7(bpy.types.Operator):
     bl_label = "Custom Operator 7"   # 操作的名称
     bl_description = "调整渲染设置,遍历渲染图片到D盘bakeTemp目录"
     def execute(self, context):
-        # 获取当前场景的渲染设置  
-        render_settings = bpy.context.scene.render  
-        
-        # 检查并打印渲染引擎  
-        if render_settings.engine == 'CYCLES':  
-            print("当前使用的是Cycles渲染引擎")  
-        else:  
-            bpy.context.scene.my_bool_prop1 = True
-            print("当前使用的不是Cycles渲染引擎,自动覆盖设置")
-        if bpy.context.scene.my_bool_prop1:
-            # 设置渲染引擎为 Cycles
-            bpy.context.scene.render.engine = 'CYCLES'
-            # 设置渲染设备为 GPU
-            bpy.context.preferences.addons['cycles'].preferences.compute_device_type = 'CUDA'
-            #bpy.context.preferences.addons['cycles'].preferences.devices[0].use = True
-            # 设置渲染参数
-            bpy.context.scene.cycles.samples = 1024
-            bpy.context.scene.cycles.preview_samples = 1024
-            bpy.context.scene.cycles.use_denoising = False
-            bpy.context.scene.cycles.preview_denoising = False
-            bpy.context.scene.cycles.seed = 0
-            bpy.context.scene.cycles.samples_threshold = 0.1
-        
-        # 检查并创建目录
-        # def create_directory_if_not_exists(directory):
-        #     if not os.path.exists(directory):
-        #         os.makedirs(directory)
-        # # 创建 bakeTemp 文件夹在 d 盘
-        # bake_temp_dir = "D:/bakeTemp"
-        # create_directory_if_not_exists(bake_temp_dir)
-
+        render_set(context) # 渲染设置
         def get_active_image_texture_name(material):  
             if not material.node_tree:  
                 return None  
@@ -571,7 +574,7 @@ class CustomOperator7(bpy.types.Operator):
         # 计算渲染时间（秒）  
         render_time = end_time - start_time 
         # 打印渲染时间  
-        print(f"所有对象渲染完毕: {render_time:.2f} 秒","错误数量为:",str(len(error_objects)))
+        print("所有对象渲染完毕: {:.2f} 分钟".format(render_time / 60),"错误数量为:",str(len(error_objects)))
         return {'FINISHED'}
 
 # 第八个按钮的操作类手动烘焙
@@ -580,36 +583,7 @@ class CustomOperator8(bpy.types.Operator):
     bl_label = "Custom Operator 8"   # 操作的名称
     bl_description = "调整渲染设置,将选中对象渲染图片到D盘bakeTemp目录"
     def execute(self, context):
-        # 获取当前场景的渲染设置  
-        render_settings = bpy.context.scene.render  
-        
-        # 检查并打印渲染引擎  
-        if render_settings.engine == 'CYCLES':  
-            print("当前使用的是Cycles渲染引擎")  
-        else:  
-            bpy.context.scene.my_bool_prop1 = True
-            print("当前使用的不是Cycles渲染引擎,自动覆盖设置")
-        if bpy.context.scene.my_bool_prop1:
-            # 设置渲染引擎为 Cycles
-            bpy.context.scene.render.engine = 'CYCLES'
-            # 设置渲染设备为 GPU
-            bpy.context.preferences.addons['cycles'].preferences.compute_device_type = 'CUDA'
-            #bpy.context.preferences.addons['cycles'].preferences.devices[0].use = True
-            # 设置渲染参数
-            bpy.context.scene.cycles.samples = 1024
-            bpy.context.scene.cycles.preview_samples = 1024
-            bpy.context.scene.cycles.use_denoising = False
-            bpy.context.scene.cycles.preview_denoising = False
-            bpy.context.scene.cycles.seed = 0
-            bpy.context.scene.cycles.samples_threshold = 0.1
-        
-        # 检查并创建目录
-        # def create_directory_if_not_exists(directory):
-        #     if not os.path.exists(directory):
-        #         os.makedirs(directory)
-        # # 创建 bakeTemp 文件夹在 d 盘
-        # bake_temp_dir = "D:/bakeTemp"
-        # create_directory_if_not_exists(bake_temp_dir)
+        render_set(context)
 
         def get_active_image_texture_name(material):  
             if not material.node_tree:  
@@ -718,7 +692,17 @@ class CustomOperator8(bpy.types.Operator):
         # 计算渲染时间（秒）  
         render_time = end_time - start_time 
         # 打印渲染时间  
-        print(f"所有对象渲染完毕: {render_time:.2f} 秒","错误数量为:",str(len(error_objects)))
+        print("所有对象渲染完毕: {:.2f} 分钟".format(render_time / 60),"错误数量为:",str(len(error_objects)))
+        return {'FINISHED'}
+
+# 第九个按钮的操作类测试
+class CustomOperator9(bpy.types.Operator):
+    bl_idname = "custom.operator9"  # 操作的唯一标识符
+    bl_label = "Custom Operator 9"   # 操作的名称
+    bl_description = "测试"
+    def execute(self, context):
+        a = HighCycles.INI_preview_samples
+        print(a)
         return {'FINISHED'}
 # 定义一个面板类
 class CustomPanel(bpy.types.Panel):
@@ -742,7 +726,45 @@ class CustomPanel(bpy.types.Panel):
         layout.operator("custom.operator7", text="开始遍历烘焙")
         layout.operator("custom.operator8", text="手动选择烘焙")
         layout.operator("custom.operator6", text="自动化优化材质")
+        layout.operator("custom.operator9", text="测试")
+        layout.prop(context.scene, "my_value")
         
+
+def read_qulity_ini(qulity):
+    global INI_samples,INI_preview_samples,INI_use_denoising,INI_preview_denoising,INI_seed,INI_samples_threshold,INI_Rate
+    if(HighCycles.INI_samples):
+        iniread = True #正确读取到ini
+        print("读取到配置ini")
+        if qulity == 1:
+            INI_samples = LowCycles.INI_samples
+            INI_preview_samples = LowCycles.INI_preview_samples
+            INI_use_denoising = LowCycles.INI_use_denoising
+            INI_preview_denoising = LowCycles.INI_preview_denoising
+            INI_seed = LowCycles.INI_seed
+            INI_samples_threshold = LowCycles.INI_samples_threshold
+            INI_Rate = LowCycles.INI_Rate
+            print("配置为",INI_samples,INI_preview_samples,INI_use_denoising,INI_preview_denoising,INI_seed,INI_samples_threshold,INI_Rate)
+        elif qulity == 2:
+            INI_samples = MediumCycles.INI_samples
+            INI_preview_samples = MediumCycles.INI_preview_samples
+            INI_use_denoising = MediumCycles.INI_use_denoising
+            INI_preview_denoising = MediumCycles.INI_preview_denoising
+            INI_seed = MediumCycles.INI_seed
+            INI_samples_threshold = MediumCycles.INI_samples_threshold
+            INI_Rate = MediumCycles.INI_Rate
+            print("配置为",INI_samples,INI_preview_samples,INI_use_denoising,INI_preview_denoising,INI_seed,INI_samples_threshold,INI_Rate)
+        elif qulity == 3:
+            INI_samples = HighCycles.INI_samples
+            INI_preview_samples = HighCycles.INI_preview_samples
+            INI_use_denoising = HighCycles.INI_use_denoising
+            INI_preview_denoising = HighCycles.INI_preview_denoising
+            INI_seed = HighCycles.INI_seed
+            INI_samples_threshold = HighCycles.INI_samples_threshold
+            INI_Rate = HighCycles.INI_Rate
+            print("配置为",INI_samples,INI_preview_samples,INI_use_denoising,INI_preview_denoising,INI_seed,INI_samples_threshold,INI_Rate)
+    else:
+        print("没有读取到配置ini,使用默认参数")
+    return iniread
 
 # 注册操作和面板类
 def register():
@@ -754,16 +776,10 @@ def register():
     bpy.utils.register_class(CustomOperator6)
     bpy.utils.register_class(CustomOperator7)
     bpy.utils.register_class(CustomOperator8)
+    bpy.utils.register_class(CustomOperator9)
     bpy.utils.register_class(CustomPanel)
-    #bpy.types.Scene.my_bool_prop = bpy.props.BoolProperty(name="my_bool_prop", description="合并后是否应用父级,如何合并错位可以选择应用", default=True)
     bpy.types.Scene.my_bool_prop1 = bpy.props.BoolProperty(name="my_bool_prop1", description="是否覆盖当前场景的渲染设置", default=True)
-
-    # # 调用单选框并检查其状态
-    # if bpy.context.scene.my_bool_prop:
-    #     print("单选框已勾选")
-    # else:
-    #     print("单选框未勾选")
-
+    bpy.types.Scene.my_value = bpy.props.FloatProperty(name="渲染质量", default=3,description="设置渲染质量:3为最高,2为中等质量,1为低质量",min=0,max = 3)
 # 注销操作和面板类
 def unregister():
     bpy.utils.unregister_class(CustomOperator1)
@@ -774,9 +790,10 @@ def unregister():
     bpy.utils.unregister_class(CustomOperator6)
     bpy.utils.unregister_class(CustomOperator7)
     bpy.utils.unregister_class(CustomOperator8)
+    bpy.utils.unregister_class(CustomOperator9)
     bpy.utils.unregister_class(CustomPanel)
-    #del bpy.types.Scene.my_bool_prop
     del bpy.types.Scene.my_bool_prop1
+    del bpy.types.Scene.my_value
 
 # 测试代码
 if __name__ == "__main__":

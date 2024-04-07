@@ -560,7 +560,7 @@ class CustomOperator7(bpy.types.Operator):
         # 计算渲染时间（秒）  
         render_time = end_time - start_time 
         # 打印渲染时间  
-        print(f"所有对象渲染完毕: {render_time:.2f / 60} 秒","错误数量为:",{len(error_objects)})
+        print(f"所有对象渲染完毕: {render_time:.2f} 秒","错误数量为:",str(len(error_objects)))
         return {'FINISHED'}
 
 # 第八个按钮的操作类

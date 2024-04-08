@@ -1,5 +1,6 @@
 import bpy
 from .quality import *
+from .Systemvariable import *
 from math import inf
 import time
 import os
@@ -15,6 +16,11 @@ bl_info = {
     "tracker_url": "https://www.baidu.com",        # 报告问题链接
     "category": "View",            # 插件分类
 } 
+
+OSoutput_folder = ''
+
+
+
 def get_item_design_id(design_str):
     design_str_arr = design_str.split(":")
     return design_str_arr[1]
@@ -431,33 +437,38 @@ class CustomOperator5(bpy.types.Operator):
 class CustomOperator6(bpy.types.Operator):
     bl_idname = "custom.operator6"  # 操作的唯一标识符
     bl_label = "Custom Operator 6"   # 操作的名称
-    bl_description = "将选中对象的漫射材质删除,并新建一个漫射材质槽"
+    bl_description = "将所有对象的漫射材质删除，并新建一个漫射材质槽"
+    
     def execute(self, context):
-        # 遍历每个选中的对象
-        for obj in bpy.context.selected_objects:
-            # 遍历每个材质槽
-            for slot in obj.material_slots:
-                material = slot.material
-                # 检查材质是否存在且不含有 "glass" 或 "mirror" 关键字
-                if material and ("glass" not in material.name.lower() and "mirror" not in material.name.lower()):
-                    # 删除材质槽中的材质
-                    bpy.data.materials.remove(material)
+        # 遍历场景中的所有对象
+        for obj in bpy.context.scene.objects:
+            # 只处理可渲染的网格对象
+            if obj.type == 'MESH':
+                # 遍历每个材质槽的索引，需要反向遍历以避免索引错误
+                for index, slot in reversed(list(enumerate(obj.material_slots))):
+                    material = slot.material
+                    # 检查材质是否存在且不含有 "glass" 或 "mirror" 关键字
+                    if material and ("glass" not in material.name.lower() and "mirror" not in material.name.lower()):
+                        # 删除材质槽中的材质
+                        bpy.data.materials.remove(material)
+                        # 删除材质槽
+                        obj.active_material_index = index
+                        bpy.ops.object.material_slot_remove()
 
-                    # 创建新的材质
-                    new_material = bpy.data.materials.new(name=obj.name + "_mt")
+                        # 创建新的材质
+                        new_material = bpy.data.materials.new(name=obj.name + "_mt")
 
-                    # 如果物体已经存在材质槽，则将新材质插入到第一个位置
-                    if obj.material_slots:
-                        obj.material_slots[0].material = new_material
-                    # 否则，创建一个新的材质槽并将新材质放置其中
-                    else:
-                        bpy.ops.object.material_slot_add()
-                        obj.material_slots[0].material = new_material
+                        # 如果物体已经存在材质槽，则将新材质插入到第一个位置
+                        if obj.material_slots:
+                            obj.material_slots[0].material = new_material
+                        # 否则，创建一个新的材质槽并将新材质放置其中
+                        else:
+                            bpy.ops.object.material_slot_add()
+                            obj.material_slots[0].material = new_material
 
         print("操作完成")
         print("Custom Operator 5 executed")
         return {'FINISHED'}
-
 # 第七个按钮的操作类遍历烘焙
 class CustomOperator7(bpy.types.Operator):
     bl_idname = "custom.operator7"  # 操作的唯一标识符
@@ -492,8 +503,8 @@ class CustomOperator7(bpy.types.Operator):
                     if material:  
                         image_name = get_active_image_texture_name(material)  
                         return(image_name)
-
-        output_folder = "D:/bakeTemp/"+bpy.data.collections.get("硬装")["projectName"]
+        OSoutput_folder = try_read_OS_Var()
+        output_folder = OSoutput_folder+bpy.data.collections.get("硬装")["projectName"]
         print("输出路径:" + output_folder)
         # 遍历场景中的所有网格物体  
         i = 0 #计数
@@ -549,7 +560,7 @@ class CustomOperator7(bpy.types.Operator):
                 bakeImageSize = getBakeSize()
                 print(f"对象 {bakeImageSize} 图片大小")
                 try:
-                    bpy.ops.object.bake(save_mode='EXTERNAL', use_cage=False)  
+                    bpy.ops.object.bake(save_mode='EXTERNAL',type='COMBINED')  
                     # 保存烘焙后的图像  
                     saveBakeImge(bakeImageSize,output_folder,ObjName)
                 except Exception as e:
@@ -612,8 +623,8 @@ class CustomOperator8(bpy.types.Operator):
                     if material:  
                         image_name = get_active_image_texture_name(material)  
                         return(image_name)
-
-        output_folder = "D:/bakeTemp/"+bpy.data.collections.get("硬装")["projectName"]
+        OSoutput_folder = try_read_OS_Var()
+        output_folder = OSoutput_folder+bpy.data.collections.get("硬装")["projectName"]
         print("输出路径:" + output_folder)
         # 遍历场景中的所有网格物体  
         i = 0 #计数
@@ -667,7 +678,7 @@ class CustomOperator8(bpy.types.Operator):
                 bakeImageSize = getBakeSize()
                 print(f"对象 {bakeImageSize} 图片大小")
                 try:
-                    bpy.ops.object.bake(save_mode='EXTERNAL', use_cage=False)  
+                    bpy.ops.object.bake(save_mode='EXTERNAL',type='COMBINED')  
                     # 保存烘焙后的图像  
                     saveBakeImge(bakeImageSize,output_folder,ObjName)
                 except Exception as e:
@@ -701,8 +712,9 @@ class CustomOperator9(bpy.types.Operator):
     bl_label = "Custom Operator 9"   # 操作的名称
     bl_description = "测试"
     def execute(self, context):
-        a = HighCycles.INI_preview_samples
-        print(a)
+        # 读取系统变量
+        path_value = os.getenv('CUDA_CACHE_MAXSIZE')
+        print("baketemp:", path_value)
         return {'FINISHED'}
 # 定义一个面板类
 class CustomPanel(bpy.types.Panel):
@@ -780,6 +792,9 @@ def register():
     bpy.utils.register_class(CustomPanel)
     bpy.types.Scene.my_bool_prop1 = bpy.props.BoolProperty(name="my_bool_prop1", description="是否覆盖当前场景的渲染设置", default=True)
     bpy.types.Scene.my_value = bpy.props.FloatProperty(name="渲染质量", default=3,description="设置渲染质量:3为最高,2为中等质量,1为低质量",min=0,max = 3)
+    OSoutput_folder = try_read_OS_Var()
+    if OSoutput_folder == None:
+        print("全局路径读取失败,请以管理员身份启动该程序,或手动添加全局变量bakeTemp='D:\\bakeTemp\\'")
 # 注销操作和面板类
 def unregister():
     bpy.utils.unregister_class(CustomOperator1)

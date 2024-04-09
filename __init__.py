@@ -40,43 +40,22 @@ OSoutput_folder = ''
 #     def execute(self, context):
 #         return {'FINISHED'}
 # 第四个按钮的操作类删除二UV
-class CustomOperator4(bpy.types.Operator):
-    bl_idname = "custom.operator4"  # 操作的唯一标识符
-    bl_label = "Custom Operator 4"   # 操作的名称
-    bl_description = "遍历所有对象,删除第二个和后面所有的UV,并添加bakeUV"
-    def execute(self, context):
-        # 执行函数以删除第二个及其后的所有 UV 图层
-        remove_second_and_subsequent_uv()
-        # 获取名为“硬装”的合集
-        collection = bpy.data.collections.get("硬装")
-        bpy.ops.object.mode_set(mode='OBJECT')
-        if collection:
-            # 获取默认的场景对象
-            view_layer = bpy.context.view_layer
+# class CustomOperator4(bpy.types.Operator):
+#     bl_idname = "custom.operator4"  # 操作的唯一标识符
+#     bl_label = "Custom Operator 4"   # 操作的名称
+#     bl_description = "遍历所有对象,删除第二个和后面所有的UV,并添加bakeUV"
+#     def execute(self, context):
+#         # 执行函数以删除第二个及其后的所有 UV 图层
+#         remove_second_and_subsequent_uv()
+#         smartUV()
 
-            # 遍历合集中的所有物体
-            for obj in collection.objects:
-                # 清除之前的选择和活动对象
-                bpy.ops.object.select_all(action='DESELECT')
-                view_layer.objects.active = None
-                # 选择当前物体
-                obj.select_set(True)
-                view_layer.objects.active = obj
-                # 进入编辑模式执行UV投射
-                bpy.ops.object.mode_set(mode='EDIT')
-                radians = degrees_to_radians(66) # 角度换算弧度
-                bpy.ops.uv.smart_project(angle_limit=radians, island_margin=0.001)
-                bpy.ops.object.mode_set(mode='OBJECT')
-        else:
-            print("未找到名为“硬装”的合集")
-
-        print("Custom Operator 4 executed")
-        return {'FINISHED'}
+#         print("Custom Operator 4 executed")
+#         return {'FINISHED'}
 # 第五个按钮的操作类合并硬装
 class CustomOperator5(bpy.types.Operator):
     bl_idname = "custom.operator5"  # 操作的唯一标识符
     bl_label = "Custom Operator 5"   # 操作的名称
-    bl_description = "合并硬装的集合[硬装]天花板,墙,地板,合并软装到[软装],保存工程"
+    bl_description = "合并硬装的集合[硬装]天花板,墙,地板,合并软装到[软装],保存工程,优化UV,添加第二UV"
     def execute(self, context):
         OSoutput_folder = try_read_OS_Var()
         # 遍历名为“硬”的集合
@@ -91,32 +70,20 @@ class CustomOperator5(bpy.types.Operator):
         print("硬装合并完毕")
         ruanCom()           
         print("软装合并完毕")
+        remove_second_and_subsequent_uv()
+        smartUV()
         savepath = OSoutput_folder + projectName+".blend"
         bpy.ops.wm.save_mainfile ( filepath = savepath )
         print(f"工程保持完毕:{savepath}")
         return {'FINISHED'}
 # 第六个按钮的操作类优化材质
-class CustomOperator6(bpy.types.Operator):
-    bl_idname = "custom.operator6"  # 操作的唯一标识符
-    bl_label = "Custom Operator 6"   # 操作的名称
-    bl_description = "将所有对象的漫射材质删除，并新建一个漫射材质槽,导出一个fbx"
-    
-    def execute(self, context):
-        # 遍历场景中所有的对象
-        for obj in bpy.context.scene.objects:
-            # 检查对象是否为网格对象
-            if obj.type == 'MESH':
-                # 执行处理材质的函数
-                process_materials(obj)
-                # 获取当前场景
-        scene = bpy.context.scene
-        OSoutput_folder = try_read_OS_Var()
-        fbxoutput = OSoutput_folder + bpy.data.collections.get("硬装")["projectName"] +"\\model.fbx"
-        bpy.ops.export_scene.fbx(object_types = {'MESH'},filepath=fbxoutput, 
-                                 axis_forward='-Z', axis_up='Y',
-                                 embed_textures = False)
-        print("FBX输出在:", fbxoutput)
-        return {'FINISHED'}
+# class CustomOperator6(bpy.types.Operator):
+#     bl_idname = "custom.operator6"  # 操作的唯一标识符
+#     bl_label = "Custom Operator 6"   # 操作的名称
+#     bl_description = "将所有对象的漫射材质删除，并新建一个漫射材质槽,导出一个fbx"
+#     def execute(self, context):
+        
+#         return {'FINISHED'}
 # 第七个按钮的操作类遍历烘焙
 class CustomOperator7(bpy.types.Operator):
     bl_idname = "custom.operator7"  # 操作的唯一标识符
@@ -160,13 +127,13 @@ class CustomPanel(bpy.types.Panel):
         # 添加一个布尔属性
         #layout.prop(context.scene, "my_bool_prop", text="合并时保持应用父级位置")
         # layout.operator("custom.operator3", text="软装合并网格")
-        layout.operator("custom.operator4", text="删除第二UV,添加bakeUV")
+        # layout.operator("custom.operator4", text="删除第二UV,添加bakeUV")
         # layout.operator("custom.operator1", text="添加bakeNode节点")
         # layout.operator("custom.operator2", text="删除bakeNode节点")
         layout.prop(context.scene, "my_bool_prop1", text="覆盖渲染设置")
         layout.operator("custom.operator7", text="开始遍历烘焙")
         layout.operator("custom.operator8", text="手动选择烘焙")
-        layout.operator("custom.operator6", text="优化材质导出FBX")
+        # layout.operator("custom.operator6", text="优化材质导出FBX")
         layout.operator("custom.operator9", text="测试")
         layout.prop(context.scene, "my_value")
         
@@ -176,9 +143,9 @@ def register():
     # bpy.utils.register_class(CustomOperator1)
     # bpy.utils.register_class(CustomOperator2)
     # bpy.utils.register_class(CustomOperator3)
-    bpy.utils.register_class(CustomOperator4)
+    # bpy.utils.register_class(CustomOperator4)
     bpy.utils.register_class(CustomOperator5)
-    bpy.utils.register_class(CustomOperator6)
+    # bpy.utils.register_class(CustomOperator6)
     bpy.utils.register_class(CustomOperator7)
     bpy.utils.register_class(CustomOperator8)
     bpy.utils.register_class(CustomOperator9)
@@ -200,9 +167,9 @@ def unregister():
     # bpy.utils.unregister_class(CustomOperator1)
     # bpy.utils.unregister_class(CustomOperator2)
     # bpy.utils.unregister_class(CustomOperator3)
-    bpy.utils.unregister_class(CustomOperator4)
+    # bpy.utils.unregister_class(CustomOperator4)
     bpy.utils.unregister_class(CustomOperator5)
-    bpy.utils.unregister_class(CustomOperator6)
+    # bpy.utils.unregister_class(CustomOperator6)
     bpy.utils.unregister_class(CustomOperator7)
     bpy.utils.unregister_class(CustomOperator8)
     bpy.utils.unregister_class(CustomOperator9)

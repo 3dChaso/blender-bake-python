@@ -233,6 +233,31 @@ def remove_second_and_subsequent_uv():
             uv_layer = obj.data.uv_layers.new(name="bakeUV")
             # 选择第二个 UV 图层
             obj.data.uv_layers.active_index = 1
+#--------------------------智能展开硬装UV--------------------------
+def smartUV():
+    # 获取名为“硬装”的合集
+    collection = bpy.data.collections.get("硬装")
+    bpy.ops.object.mode_set(mode='OBJECT')
+    if collection:
+        # 获取默认的场景对象
+        view_layer = bpy.context.view_layer
+
+        # 遍历合集中的所有物体
+        for obj in collection.objects:
+            # 清除之前的选择和活动对象
+            bpy.ops.object.select_all(action='DESELECT')
+            view_layer.objects.active = None
+            # 选择当前物体
+            obj.select_set(True)
+            view_layer.objects.active = obj
+            # 进入编辑模式执行UV投射
+            bpy.ops.object.mode_set(mode='EDIT')
+            radians = degrees_to_radians(66) # 角度换算弧度
+            bpy.ops.uv.smart_project(angle_limit=radians, island_margin=0.001)
+            bpy.ops.object.mode_set(mode='OBJECT')
+    else:
+            print("未找到名为“硬装”的合集")
+
 
 #--------------------------删除增加节点--------------------------
 def UpdateNode(iniass):
@@ -381,6 +406,29 @@ def readyBake(context,auto):
     # 计算渲染时间（秒）  
     render_time = end_time - start_time 
     print("所有对象渲染完毕: {:.2f} 分钟".format(render_time / 60),"错误数量为:",str(len(error_objects)))
+    #保存一次
+    bpy.ops.wm.save_mainfile()
+    print("保存场景一次")
+    # 记录当前场景状态
+    initial_snapshot = take_snapshot()
+    # 优化所有材质,并且导出FBX
+    # 遍历场景中所有的对象
+    for obj in bpy.context.scene.objects:
+        # 检查对象是否为网格对象
+        if obj.type == 'MESH':
+            # 执行处理材质的函数
+            process_materials(obj)
+            # 获取当前场景
+    scene = bpy.context.scene
+    OSoutput_folder = try_read_OS_Var()
+    fbxoutput = OSoutput_folder + bpy.data.collections.get("硬装")["projectName"] +"\\model.fbx"
+    bpy.ops.export_scene.fbx(object_types = {'MESH'},filepath=fbxoutput, 
+                                axis_forward='-Z', axis_up='Y',
+                                embed_textures = False)
+    print("FBX输出在:", fbxoutput)
+    # 撤销优化材质恢复之前的状态
+    restore_snapshot(initial_snapshot)
+    print("场景已经恢复")
 #--------------------------自动烘焙--------------------------
 def autoRender(output_folder):
     SCenemesh = 0 #场景模型数量
@@ -566,3 +614,24 @@ def yingCom(collection,collection_name):
 def degrees_to_radians(degrees):
     radians = degrees * (3.1415926 / 180)
     return radians
+#--------------------------场景快照 - 保存当前场景状态--------------------------
+def take_snapshot():
+    """
+    记录当前场景状态。
+    """
+    snapshot = {}
+    for obj in bpy.data.objects:
+        snapshot[obj.name] = obj.location.copy(), obj.rotation_euler.copy(), obj.scale.copy()
+    return snapshot
+
+#--------------------------场景快照 - 还原到之前保存的场景状态--------------------------
+def restore_snapshot(snapshot):
+    """
+    恢复到之前记录的场景状态。
+    """
+    for obj_name, (location, rotation, scale) in snapshot.items():
+        obj = bpy.data.objects.get(obj_name)
+        if obj:
+            obj.location = location
+            obj.rotation_euler = rotation
+            obj.scale = scale

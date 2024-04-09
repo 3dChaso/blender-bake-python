@@ -59,14 +59,13 @@ class CustomOperator4(bpy.types.Operator):
                 # 清除之前的选择和活动对象
                 bpy.ops.object.select_all(action='DESELECT')
                 view_layer.objects.active = None
-
                 # 选择当前物体
                 obj.select_set(True)
                 view_layer.objects.active = obj
-
                 # 进入编辑模式执行UV投射
                 bpy.ops.object.mode_set(mode='EDIT')
-                bpy.ops.uv.smart_project(angle_limit=66, island_margin=0.001)
+                radians = degrees_to_radians(66) # 角度换算弧度
+                bpy.ops.uv.smart_project(angle_limit=radians, island_margin=0.001)
                 bpy.ops.object.mode_set(mode='OBJECT')
         else:
             print("未找到名为“硬装”的合集")

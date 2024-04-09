@@ -441,7 +441,7 @@ def create_collection(collection_name):
     new_collection = bpy.data.collections.new(collection_name)
     bpy.context.scene.collection.children.link(new_collection)
 
-    
+
 def ruanCom():
     # 检查是否存在名为“软装”的集合
     bpy.ops.object.select_all(action='DESELECT')
@@ -561,3 +561,8 @@ def yingCom(collection,collection_name):
         print("合并了 %d 个 Wall 对象" % wall_count)
     else:
         print("没有找到名为 '%s' 的集合" % collection_name)
+
+#--------------------------角度换算弧度--------------------------
+def degrees_to_radians(degrees):
+    radians = degrees * (3.1415926 / 180)
+    return radians

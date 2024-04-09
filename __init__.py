@@ -1,6 +1,5 @@
 import bpy
-from .quality import *
-from .Systemvariable import *
+from .BakingSystemvariable import *
 from math import inf
 import time
 import os
@@ -8,7 +7,7 @@ from .util import *
 bl_info = {
     "name": "烘焙功能菜单",        # 插件名称
     "author": "王思",        # 作者名称
-    "version": (0, 4, 0),                # 插件版本号
+    "version": (0, 4, 1),                # 插件版本号
     "blender": (3, 6, 0),                # Blender 软件最低版本要求
     "location": "Blender插件框架",                # 位置信息
     "description": "洞窝blender烘焙脚本开发",                # 插件描述
@@ -16,49 +15,7 @@ bl_info = {
     "tracker_url": "https://www.baidu.com",        # 报告问题链接
     "category": "View",            # 插件分类
 } 
-
 OSoutput_folder = ''
-
-
-
-def get_item_design_id(design_str):
-    design_str_arr = design_str.split(":")
-    return design_str_arr[1]
-
-def get_design(context):
-    return get_item_design_id(context.scene.design_property)
-def render_set(context):
-    # 获取当前场景的渲染设置  
-    render_settings = bpy.context.scene.render  
-    # 读取面板质量设置 
-    qualityLevel = context.scene.my_value
-    # 检查并打印渲染引擎  
-    if render_settings.engine == 'CYCLES':  
-        print("当前使用的是Cycles渲染引擎")  
-    else:  
-        bpy.context.scene.my_bool_prop1 = True
-        print("当前使用的不是Cycles渲染引擎,自动覆盖设置")
-    if bpy.context.scene.my_bool_prop1:#覆盖按钮
-        # 设置渲染引擎为 Cycles
-        bpy.context.scene.render.engine = 'CYCLES'
-        # 设置渲染设备为 GPU
-        bpy.context.preferences.addons['cycles'].preferences.compute_device_type = 'CUDA'
-        if read_qulity_ini(qualityLevel):#覆盖质量分级
-            bpy.context.scene.cycles.samples = INI_samples
-            bpy.context.scene.cycles.preview_samples = INI_preview_samples
-            bpy.context.scene.cycles.use_denoising = INI_use_denoising
-            bpy.context.scene.cycles.preview_denoising = INI_preview_denoising
-            bpy.context.scene.cycles.seed = INI_seed
-            bpy.context.scene.cycles.samples_threshold = INI_samples_threshold
-            print(f"覆盖渲染质量为{qualityLevel}")
-        else:#覆盖默认值
-            bpy.context.scene.cycles.samples = 1024
-            bpy.context.scene.cycles.preview_samples = 1024
-            bpy.context.scene.cycles.use_denoising = False
-            bpy.context.scene.cycles.preview_denoising = False
-            bpy.context.scene.cycles.seed = 0
-            bpy.context.scene.cycles.samples_threshold = 0.1
-            print("使用的是默认值")
 # 第一个按钮的操作类添加烘焙节点
 class CustomOperator1(bpy.types.Operator):
     bl_idname = "custom.operator1"  # 操作的唯一标识符
@@ -106,23 +63,26 @@ class CustomOperator1(bpy.types.Operator):
                 return
         dulihua()
         yingyongbianhuan()
+        iniass = []
         # 图像资源名称
-        if INI_Rate:
-            Rate = INI_Rate
-        else:
-            Rate = 1
-        image512_name = "bake512"
-        image1K_name = "bake1024"
-        image2K_name = "bake2048"
-        image4K_name = "bake4096"
-        if image512_name not in bpy.data.images:
-            bpy.ops.image.new(name=image512_name, width=512*Rate, height=512*Rate)
-        if image1K_name not in bpy.data.images:
-            bpy.ops.image.new(name=image1K_name, width=1024*Rate, height=1024*Rate)
-        if image2K_name not in bpy.data.images:
-            bpy.ops.image.new(name=image2K_name, width=2048*Rate, height=2048*Rate)
-        if image4K_name not in bpy.data.images:
-            bpy.ops.image.new(name=image4K_name, width=4096*Rate, height=4096*Rate)
+        iniass = render_set(context)
+        # 从 iniass 列表中获取 Rate
+        Rate = iniass[6]
+        print(f"Rate:{Rate}")
+
+        # 定义图像名称和对应的尺寸
+        image_sizes = {
+            "bake512": 512,
+            "bake1024": 1024,
+            "bake2048": 2048,
+            "bake4096": 4096
+        }
+
+        # 遍历图像名称和尺寸，创建新图像
+        for image_name, size in image_sizes.items():
+            if image_name not in bpy.data.images:
+                chicun = int(size * Rate)
+                bpy.ops.image.new(name=image_name, width=chicun, height=chicun)
 
 
         # 获取模型面积
@@ -217,13 +177,6 @@ class CustomOperator3(bpy.types.Operator):
             new_collection = bpy.data.collections.new(collection_name)
             bpy.context.scene.collection.children.link(new_collection)
         bpy.ops.object.select_all(action='DESELECT')
-        # 将对象移动到指定的集合中
-        def move_object_to_collection(obj, collection_name):
-            if check_collection_existence(collection_name):
-                collection = bpy.data.collections.get(collection_name)
-                if collection:
-                    collection.objects.link(obj)
-
         collection_name = "软装"
         if not check_collection_existence(collection_name):
             create_collection(collection_name)
@@ -262,7 +215,6 @@ class CustomOperator3(bpy.types.Operator):
                     
                     # 将合并后的对象移动到“软装”集合中
                     selct_objs_move_to_collection(collection_name)
-                    #move_object_to_collection(merged_obj, collection_name)
                     
                     bpy.ops.object.select_all(action='DESELECT')
         def delete_empty_objects():
@@ -295,28 +247,6 @@ class CustomOperator4(bpy.types.Operator):
     bl_label = "Custom Operator 4"   # 操作的名称
     bl_description = "遍历所有对象,删除第二个和后面所有的UV,并添加bakeUV"
     def execute(self, context):
-        # 在这里编写第三个按钮的操作逻辑
-        def remove_second_and_subsequent_uv():
-            # 获取场景中的所有对象
-            all_objects = bpy.data.objects
-            
-            # 遍历场景中的所有对象
-            for obj in all_objects:
-                # 检查对象是否是网格对象
-                if obj.type == 'MESH':
-                    # 获取对象的网格数据
-                    mesh = obj.data
-                    # 检查对象是否有多个 UV 图层
-                    if len(mesh.uv_layers) > 1:
-                        # 从第二个 UV 图层开始删除，直到只剩下一个
-                        for i in range(len(mesh.uv_layers) - 1, 0, -1):
-                            uv_layer_to_remove = mesh.uv_layers[i]
-                            mesh.uv_layers.remove(uv_layer_to_remove)
-                        print("已删除", obj.name, "的第二个及其后的所有 UV 图层")
-                    # 创建一个新的 UV 贴图
-                    uv_layer = obj.data.uv_layers.new(name="bakeUV")
-                    # 选择第二个 UV 图层
-                    obj.data.uv_layers.active_index = 1
         # 执行函数以删除第二个及其后的所有 UV 图层
         remove_second_and_subsequent_uv()
         # 获取名为“硬装”的合集
@@ -324,7 +254,6 @@ class CustomOperator4(bpy.types.Operator):
         bpy.ops.object.mode_set(mode='OBJECT')
         if collection:
             # 获取默认的场景对象
-            scene = bpy.context.scene
             view_layer = bpy.context.view_layer
 
             # 遍历合集中的所有物体
@@ -440,34 +369,13 @@ class CustomOperator6(bpy.types.Operator):
     bl_description = "将所有对象的漫射材质删除，并新建一个漫射材质槽"
     
     def execute(self, context):
-        # 遍历场景中的所有对象
+        # 遍历场景中所有的对象
         for obj in bpy.context.scene.objects:
-            # 只处理可渲染的网格对象
+            # 检查对象是否为网格对象
             if obj.type == 'MESH':
-                # 遍历每个材质槽的索引，需要反向遍历以避免索引错误
-                for index, slot in reversed(list(enumerate(obj.material_slots))):
-                    material = slot.material
-                    # 检查材质是否存在且不含有 "glass" 或 "mirror" 关键字
-                    if material and ("glass" not in material.name.lower() and "mirror" not in material.name.lower()):
-                        # 删除材质槽中的材质
-                        bpy.data.materials.remove(material)
-                        # 删除材质槽
-                        obj.active_material_index = index
-                        bpy.ops.object.material_slot_remove()
-
-                        # 创建新的材质
-                        new_material = bpy.data.materials.new(name=obj.name + "_mt")
-
-                        # 如果物体已经存在材质槽，则将新材质插入到第一个位置
-                        if obj.material_slots:
-                            obj.material_slots[0].material = new_material
-                        # 否则，创建一个新的材质槽并将新材质放置其中
-                        else:
-                            bpy.ops.object.material_slot_add()
-                            obj.material_slots[0].material = new_material
-
+                # 执行处理材质的函数
+                process_materials(obj)
         print("操作完成")
-        print("Custom Operator 5 executed")
         return {'FINISHED'}
 # 第七个按钮的操作类遍历烘焙
 class CustomOperator7(bpy.types.Operator):
@@ -475,116 +383,33 @@ class CustomOperator7(bpy.types.Operator):
     bl_label = "Custom Operator 7"   # 操作的名称
     bl_description = "调整渲染设置,遍历渲染图片到D盘bakeTemp目录"
     def execute(self, context):
-        render_set(context) # 渲染设置
-        def get_active_image_texture_name(material):  
-            if not material.node_tree:  
-                return None  
-            # 获取材质的活动节点  
-            active_node = material.node_tree.nodes.active  
-            if not active_node or not isinstance(active_node, bpy.types.ShaderNodeTexImage):  
-                print("获取尺寸出错")
-                return None    
-            # 获取图片资源名  
-            image = active_node.image  
-            if image:  
-                return image.name
-            print("获取尺寸出错")  
-            return None  
-
-        # 获取选中的对象
-        def getBakeSize():
-            selected_objects = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']  
-            if not selected_objects:  
-                print("没有选中任何网格对象。")  
-            # 遍历选中对象的材质  
-            for obj in selected_objects:  
-                for slot in obj.material_slots:  
-                    material = slot.material  
-                    if material:  
-                        image_name = get_active_image_texture_name(material)  
-                        return(image_name)
-        OSoutput_folder = try_read_OS_Var()
-        output_folder = OSoutput_folder+bpy.data.collections.get("硬装")["projectName"]
-        print("输出路径:" + output_folder)
-        # 遍历场景中的所有网格物体  
+        global error_objects
         i = 0 #计数
-        SCenemesh = 0 #场景模型数量
-        for obj in bpy.context.scene.objects:   
-            if obj.type == 'MESH':  
-                SCenemesh = SCenemesh + 1
-        def saveBakeImge(image_name, output_folder,ObjName):  
-            # 确保输出文件夹存在  
-            if not os.path.exists(output_folder):  
-                os.makedirs(output_folder)  
-            
-            # 查找名为image_name的图片资源  
-            for image in bpy.data.images:  
-                if image.name == image_name:  
-                    # 构造完整的图片路径  
-                    file_path = os.path.join(output_folder, f"{ObjName}.png")  
-                    try:
-                        # 切换到图像编辑器上下文
-                        bpy.context.area.type = 'IMAGE_EDITOR'
-                        bpy.context.area.spaces.active.image = image
-
-                        bpy.ops.image.save_as(save_as_render=True, show_multiview=False, use_multiview=False, filepath=file_path)
-                        print("Image saved successfully to:", file_path)
-                    except Exception as e:
-                        print("Error saving image:", e)
-                    return   
-            print(f"未找到名为 {image_name} 的图片资源。")  
+        render_set(context) # 渲染设置
+        output_folder = OSoutput()
+        print("输出路径:" + output_folder)
+        error_objects = []  # 用于存储出错物体的名称  
         # 记录结束时间  
         start_time = time.time()   
+        SCenemesh = 0 #场景模型数量
+        for obj in bpy.context.scene.objects:   #统计所有数量
+            if obj.type == 'MESH':  
+                SCenemesh = SCenemesh + 1       
         for obj in bpy.context.scene.objects:
-            error_objects = []  # 用于存储出错物体的名称     
             if obj.type == 'MESH':
-                # 单张时间开始    
-                solostart_time = time.time() 
-                bpy.ops.object.select_all(action='DESELECT') 
-                obj.select_set(True)
-                ObjName = obj.name
-                print(f"当前选中的mesh是 {ObjName} ")
-                # 重置烘焙节点
-                def change_image_source_to_generated(node):  
-                    if node.type == 'TEX_IMAGE' and node.name == 'bakeNode':  
-                        # 如果图像纹理节点没有连接的图像，则无需更改  
-                        if node.image:  
-                            # 将图像属性来源更改为"生成"  
-                            node.image.source = 'GENERATED' 
-                for slot in obj.material_slots:  
-                    if slot.material:  
-                        for node in slot.material.node_tree.nodes:  
-                            change_image_source_to_generated(node) 
-
-                # 开始烘焙  
-                bakeImageSize = getBakeSize()
-                print(f"对象 {bakeImageSize} 图片大小")
-                try:
-                    bpy.ops.object.bake(save_mode='EXTERNAL',type='COMBINED')  
-                    # 保存烘焙后的图像  
-                    saveBakeImge(bakeImageSize,output_folder,ObjName)
-                except Exception as e:
-                    error_objects.append(obj.name)  
                 i = i + 1
-                # 计算单张渲染时间   
-                soloend_time = time.time()
-                solorender_time = soloend_time - solostart_time 
-                print("进度:["+str(i)+"/"+str(SCenemesh)+"]")
-                print(f"单张用时: {solorender_time:.2f} 秒")
-                # 取消选中当前物体，为下一个物体做准备  
-                obj.select_set(False)  
-
+                # 如果是网格遍历,获取错误对象
+                Bakeing(obj,output_folder,error_objects)
+                print("进度:["+str(i)+"/"+str(SCenemesh)+"]")  
             else:  
                 print(f"选中的不是网格 {obj.name}")
-            if error_objects:  
-                print(f"烘焙错误对象: {', '.join(error_objects)}") 
         # 完成后取消所有物体的选中状态  
         bpy.ops.object.select_all(action='DESELECT')
         # 记录结束时间  
         end_time = time.time()  
         # 计算渲染时间（秒）  
         render_time = end_time - start_time 
-        # 打印渲染时间  
+        # 打印渲染时间
         print("所有对象渲染完毕: {:.2f} 分钟".format(render_time / 60),"错误数量为:",str(len(error_objects)))
         return {'FINISHED'}
 
@@ -594,108 +419,23 @@ class CustomOperator8(bpy.types.Operator):
     bl_label = "Custom Operator 8"   # 操作的名称
     bl_description = "调整渲染设置,将选中对象渲染图片到D盘bakeTemp目录"
     def execute(self, context):
-        render_set(context)
-
-        def get_active_image_texture_name(material):  
-            if not material.node_tree:  
-                return None  
-            # 获取材质的活动节点  
-            active_node = material.node_tree.nodes.active  
-            if not active_node or not isinstance(active_node, bpy.types.ShaderNodeTexImage):  
-                print("获取尺寸出错")
-                return None    
-            # 获取图片资源名  
-            image = active_node.image  
-            if image:  
-                return image.name
-            print("获取尺寸出错")  
-            return None  
-
-        # 获取选中的对象
-        def getBakeSize():
-            selected_objects = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']  
-            if not selected_objects:  
-                print("没有选中任何网格对象。")  
-            # 遍历选中对象的材质  
-            for obj in selected_objects:  
-                for slot in obj.material_slots:  
-                    material = slot.material  
-                    if material:  
-                        image_name = get_active_image_texture_name(material)  
-                        return(image_name)
-        OSoutput_folder = try_read_OS_Var()
-        output_folder = OSoutput_folder+bpy.data.collections.get("硬装")["projectName"]
-        print("输出路径:" + output_folder)
-        # 遍历场景中的所有网格物体  
+        global error_objects
         i = 0 #计数
-        def saveBakeImge(image_name, output_folder,ObjName):  
-            # 确保输出文件夹存在  
-            if not os.path.exists(output_folder):  
-                os.makedirs(output_folder)  
-            
-            # 查找名为image_name的图片资源  
-            for image in bpy.data.images:  
-                if image.name == image_name:  
-                    # 构造完整的图片路径  
-                    file_path = os.path.join(output_folder, f"{ObjName}.png")  
-                    try:
-                        # 切换到图像编辑器上下文
-                        bpy.context.area.type = 'IMAGE_EDITOR'
-                        bpy.context.area.spaces.active.image = image
-
-                        bpy.ops.image.save_as(save_as_render=True, show_multiview=False, use_multiview=False, filepath=file_path)
-                        print("Image saved successfully to:", file_path)
-                    except Exception as e:
-                        print("Error saving image:", e)
-                    return   
-            print(f"未找到名为 {image_name} 的图片资源。")  
-        # 记录结束时间  
+        render_set(context) # 渲染设置
+        output_folder = OSoutput()
+        print("输出路径:" + output_folder)
+        error_objects = []  # 用于存储出错物体的名称  
         start_time = time.time()   
         # 获取当前场景中选中的对象
         selected_objects = bpy.context.selected_objects
-        for obj in selected_objects:
-            error_objects = []  # 用于存储出错物体的名称     
+        for obj in selected_objects:   
             if obj.type == 'MESH':
-                # 单张时间开始    
-                solostart_time = time.time() 
-                bpy.ops.object.select_all(action='DESELECT') 
-                obj.select_set(True)
-                ObjName = obj.name
-                print(f"当前选中的mesh是 {ObjName} ")
-                # 重置烘焙节点
-                def change_image_source_to_generated(node):  
-                    if node.type == 'TEX_IMAGE' and node.name == 'bakeNode':  
-                        # 如果图像纹理节点没有连接的图像，则无需更改  
-                        if node.image:  
-                            # 将图像属性来源更改为"生成"  
-                            node.image.source = 'GENERATED' 
-                for slot in obj.material_slots:  
-                    if slot.material:  
-                        for node in slot.material.node_tree.nodes:  
-                            change_image_source_to_generated(node) 
-
-                # 开始烘焙  
-                bakeImageSize = getBakeSize()
-                print(f"对象 {bakeImageSize} 图片大小")
-                try:
-                    bpy.ops.object.bake(save_mode='EXTERNAL',type='COMBINED')  
-                    # 保存烘焙后的图像  
-                    saveBakeImge(bakeImageSize,output_folder,ObjName)
-                except Exception as e:
-                    error_objects.append(obj.name)  
                 i = i + 1
-                # 计算单张渲染时间   
-                soloend_time = time.time()
-                solorender_time = soloend_time - solostart_time 
-                print("进度:["+str(i)+"/"+str(len(selected_objects))+"]")
-                print(f"单张用时: {solorender_time:.2f} 秒")
-                # 取消选中当前物体，为下一个物体做准备  
-                obj.select_set(False)  
-
+                # 如果是网格遍历,获取错误对象
+                Bakeing(obj,output_folder,error_objects)
+                print("进度:["+str(i)+"/"+str(len(selected_objects))+"]") 
             else:  
                 print(f"选中的不是网格 {obj.name}")
-            if error_objects:  
-                print(f"烘焙错误对象: {', '.join(error_objects)}") 
         # 完成后取消所有物体的选中状态  
         bpy.ops.object.select_all(action='DESELECT')
         # 记录结束时间  
@@ -741,42 +481,6 @@ class CustomPanel(bpy.types.Panel):
         layout.operator("custom.operator9", text="测试")
         layout.prop(context.scene, "my_value")
         
-
-def read_qulity_ini(qulity):
-    global INI_samples,INI_preview_samples,INI_use_denoising,INI_preview_denoising,INI_seed,INI_samples_threshold,INI_Rate
-    if(HighCycles.INI_samples):
-        iniread = True #正确读取到ini
-        print("读取到配置ini")
-        if qulity == 1:
-            INI_samples = LowCycles.INI_samples
-            INI_preview_samples = LowCycles.INI_preview_samples
-            INI_use_denoising = LowCycles.INI_use_denoising
-            INI_preview_denoising = LowCycles.INI_preview_denoising
-            INI_seed = LowCycles.INI_seed
-            INI_samples_threshold = LowCycles.INI_samples_threshold
-            INI_Rate = LowCycles.INI_Rate
-            print("配置为",INI_samples,INI_preview_samples,INI_use_denoising,INI_preview_denoising,INI_seed,INI_samples_threshold,INI_Rate)
-        elif qulity == 2:
-            INI_samples = MediumCycles.INI_samples
-            INI_preview_samples = MediumCycles.INI_preview_samples
-            INI_use_denoising = MediumCycles.INI_use_denoising
-            INI_preview_denoising = MediumCycles.INI_preview_denoising
-            INI_seed = MediumCycles.INI_seed
-            INI_samples_threshold = MediumCycles.INI_samples_threshold
-            INI_Rate = MediumCycles.INI_Rate
-            print("配置为",INI_samples,INI_preview_samples,INI_use_denoising,INI_preview_denoising,INI_seed,INI_samples_threshold,INI_Rate)
-        elif qulity == 3:
-            INI_samples = HighCycles.INI_samples
-            INI_preview_samples = HighCycles.INI_preview_samples
-            INI_use_denoising = HighCycles.INI_use_denoising
-            INI_preview_denoising = HighCycles.INI_preview_denoising
-            INI_seed = HighCycles.INI_seed
-            INI_samples_threshold = HighCycles.INI_samples_threshold
-            INI_Rate = HighCycles.INI_Rate
-            print("配置为",INI_samples,INI_preview_samples,INI_use_denoising,INI_preview_denoising,INI_seed,INI_samples_threshold,INI_Rate)
-    else:
-        print("没有读取到配置ini,使用默认参数")
-    return iniread
 
 # 注册操作和面板类
 def register():

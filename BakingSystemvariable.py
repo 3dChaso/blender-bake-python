@@ -4,6 +4,8 @@ import subprocess
 import bpy
 from .quality import *
 import time
+from math import inf
+from .util import *
 #--------------------------读写系统变量--------------------------
 def run_as_admin():
     if ctypes.windll.shell32.IsUserAnAdmin():
@@ -115,7 +117,7 @@ def get_active_image_texture_name(material):
         return image.name
     print("获取尺寸出错")  
     return None  
-
+#--------------------------全程烘焙--------------------------
 # 获取选中的对象
 def getBakeSize():
     selected_objects = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']  
@@ -142,7 +144,6 @@ def saveBakeImge(image_name, output_folder,ObjName):
                 # 切换到图像编辑器上下文
                 bpy.context.area.type = 'IMAGE_EDITOR'
                 bpy.context.area.spaces.active.image = image
-
                 bpy.ops.image.save_as(save_as_render=True, show_multiview=False, use_multiview=False, filepath=file_path)
                 print("Image saved successfully to:", file_path)
             except Exception as e:
@@ -190,6 +191,7 @@ def Bakeing(obj,output_folder,error_objects):
     # 取消选中当前物体，为下一个物体做准备  
     obj.select_set(False)  
     # 返回捕捉错误对象
+    return error_objects
 
 #--------------------------删除材质--------------------------
 def process_materials(obj):
@@ -231,3 +233,331 @@ def remove_second_and_subsequent_uv():
             uv_layer = obj.data.uv_layers.new(name="bakeUV")
             # 选择第二个 UV 图层
             obj.data.uv_layers.active_index = 1
+
+#--------------------------删除增加节点--------------------------
+def UpdateNode(iniass):
+    # 获取场景中所有的材质
+    materials = bpy.data.materials
+    # 循环遍历所有的材质
+    for material in materials:
+        # 如果材质使用了节点
+        if material.use_nodes:
+            node_tree = material.node_tree
+            # 获取所有节点
+            nodes = node_tree.nodes
+            # 存储要删除的节点
+            nodes_to_remove = []
+            
+            # 遍历节点，查找名为“bakeNode”的节点
+            for node in nodes:
+                if node.type == 'TEX_IMAGE' and node.name == "bakeNode":
+                    nodes_to_remove.append(node)
+            
+            # 删除所有名为“bakeNode”的节点
+            for node in nodes_to_remove:
+                node_tree.nodes.remove(node)      
+    # 删除贴图资源
+    for img in bpy.data.images:
+        if "bake1024" in img.name or "bake2048" in img.name or "bake4096" in img.name or "bake512" in img.name:
+            bpy.data.images.remove(img)
+
+
+    def dulihua():
+        for obj in bpy.context.scene.objects:   
+            #遍历所有模型使其独立化
+            for obj in bpy.data.objects:
+                # 检查对象是否为模型对象
+                if obj.type == 'MESH':
+                    # 选择对象
+                    bpy.context.view_layer.objects.active = obj
+                    bpy.ops.object.select_all(action='DESELECT')
+                    obj.select_set(True)
+                    # 将对象的数据、材质等设为单一用户
+                    bpy.ops.object.make_single_user(object=True, obdata=True, material=True, animation=False, obdata_animation=False)
+            print ("独立化完毕")
+            return
+    def yingyongbianhuan():
+        for obj in bpy.context.scene.objects:   
+            #遍历所有模型使应用全部变换
+            for obj in bpy.data.objects:
+                # 检查对象是否为模型对象
+                if obj.type == 'MESH':
+                    # 选择对象
+                    bpy.context.view_layer.objects.active = obj
+                    bpy.ops.object.select_all(action='DESELECT')
+                    obj.select_set(True)                       
+                    # 将对象的数据、材质等设为单一用户
+                    if any(s < 0 for s in obj.scale):
+                        FlipNormal = True
+                    else:
+                        FlipNormal = False
+                    # 应用对象变换
+                    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True) #应用全部变换
+                    if FlipNormal:
+                        bpy.ops.object.mode_set(mode='EDIT')
+                        bpy.ops.mesh.select_all(action='SELECT')
+                        bpy.ops.mesh.flip_normals()
+                        bpy.ops.object.mode_set(mode='OBJECT')
+                        print("网格法线已翻转")
+            print ("应用变换完毕")
+            return
+    dulihua()
+    yingyongbianhuan()
+    # 从 iniass 列表中获取 Rate
+    Rate = iniass[6]
+    print(f"Rate:{Rate}")
+
+    # 定义图像名称和对应的尺寸
+    image_sizes = {
+        "bake512": 512,
+        "bake1024": 1024,
+        "bake2048": 2048,
+        "bake4096": 4096
+    }
+
+    # 遍历图像名称和尺寸，创建新图像
+    for image_name, size in image_sizes.items():
+        if image_name not in bpy.data.images:
+            chicun = int(size * Rate)
+            bpy.ops.image.new(name=image_name, width=chicun, height=chicun)
+
+
+    # 获取模型面积
+    def get_model_area(obj):
+        return sum(face.area for face in obj.data.polygons)
+
+    # 遍历所有模型
+    for obj in bpy.context.scene.objects:
+        if obj.type == 'MESH':
+            model_area = get_model_area(obj)
+        for slot in obj.material_slots:
+                    material = slot.material
+                    if material:
+                        nodes = material.node_tree.nodes
+                        has_bake_node = False
+                        
+                        # 检查材质中是否存在名为 "bakeNode" 的节点
+                        for node in nodes:
+                            if node.type == 'TEX_IMAGE' and node.name == "bakeNode":
+                                has_bake_node = True
+                                break
+                        # 如果不存在 "bakeNode" 节点，则创建并设置图像资源
+                        if not has_bake_node:
+                            bake_node = nodes.new('ShaderNodeTexImage')
+                            bake_node.name = "bakeNode"
+                            if 0 < model_area <= 0.2:
+                                bake_node.image = bpy.data.images.get("bake512")
+                                print("使用了bake512")
+                            elif 0.2 < model_area <= 0.5:
+                                bake_node.image = bpy.data.images.get("bake1024")
+                                print("使用了bake1024")  
+                            elif 0.5 < model_area <= 10:
+                                bake_node.image = bpy.data.images.get("bake2048")
+                                print("使用了bake2048")  
+                            else:
+                                bake_node.image = bpy.data.images.get("bake4096")
+                                print("使用了bake4096")    
+                            nodes.active = bake_node
+
+#--------------------------烘焙前操作--------------------------
+def readyBake(context,auto):
+    global error_objects
+    error_objects = []  # 用于存储出错物体的名称  
+    iniass = render_set(context) # 渲染设置
+    UpdateNode(iniass) # 更新节点
+    output_folder = OSoutput()
+    print("输出路径:" + output_folder)
+    # 记录结束时间  
+    start_time = time.time()   
+    if auto:
+        autoRender(output_folder)
+    else:
+        manualRender(output_folder)
+
+    # 完成后取消所有物体的选中状态  
+    bpy.ops.object.select_all(action='DESELECT')
+    # 记录结束时间  
+    end_time = time.time()  
+    # 计算渲染时间（秒）  
+    render_time = end_time - start_time 
+    print("所有对象渲染完毕: {:.2f} 分钟".format(render_time / 60),"错误数量为:",str(len(error_objects)))
+#--------------------------自动烘焙--------------------------
+def autoRender(output_folder):
+    SCenemesh = 0 #场景模型数量
+    i = 0 #计数
+    for obj in bpy.context.scene.objects:   #统计所有数量
+        if obj.type == 'MESH':  
+            SCenemesh = SCenemesh + 1       
+    for obj in bpy.context.scene.objects:
+        if obj.type == 'MESH':
+            i = i + 1
+            # 如果是网格遍历,获取错误对象
+            Bakeing(obj,output_folder,error_objects)
+            print("进度:["+str(i)+"/"+str(SCenemesh)+"]")  
+        else:  
+            print(f"选中的不是网格 {obj.name}")
+
+#--------------------------手动烘焙--------------------------
+def manualRender(output_folder):
+    i = 0 #计数
+    selected_objects = bpy.context.selected_objects
+    for obj in selected_objects:   
+        if obj.type == 'MESH':
+            i = i + 1
+            # 如果是网格遍历,获取错误对象
+            Bakeing(obj,output_folder,error_objects)
+            print("进度:["+str(i)+"/"+str(len(selected_objects))+"]") 
+        else:  
+            print(f"选中的不是网格 {obj.name}")
+
+#--------------------------软装合并--------------------------
+def delete_empty_objects():
+            # 获取当前场景中的所有对象
+            objects = bpy.context.scene.objects
+            
+            # 记录删除的对象数量
+            deleted_count = 0
+            
+            # 循环遍历所有对象
+            for obj in objects:
+                # 检查对象是否没有网格数据且没有子对象
+                if obj.type == 'EMPTY' and not obj.children and not obj.data:
+                    # 删除空对象
+                    bpy.data.objects.remove(obj, do_unlink=True)
+                    deleted_count += 1
+            
+            # 如果删除了至少一个对象，则继续执行删除操作
+            if deleted_count > 0:
+                delete_empty_objects()
+
+def check_collection_existence(collection_name):
+    for collection in bpy.data.collections:
+        if collection.name == collection_name:
+            return True
+    return False
+
+# 创建名为“软装”的集合
+def create_collection(collection_name):
+    new_collection = bpy.data.collections.new(collection_name)
+    bpy.context.scene.collection.children.link(new_collection)
+
+    
+def ruanCom():
+    # 检查是否存在名为“软装”的集合
+    bpy.ops.object.select_all(action='DESELECT')
+    collection_name = "软装"
+    if not check_collection_existence(collection_name):
+        create_collection(collection_name)
+        print(f"已创建名为'{collection_name}'的集合。")
+    else:
+        print(f"名为'{collection_name}'的集合已存在。")
+
+    # 遍历所有的对象
+    for obj in bpy.data.objects:
+        # 如果当前对象有子级
+        if obj.children:
+            # 判断是否有模型对象
+            has_mesh_children = False
+            for child in obj.children:
+                if child.type == 'MESH':
+                    has_mesh_children = True
+                    break
+            
+            # 如果有模型对象，选中所有子级并设置活动对象为第一个子对象
+            if has_mesh_children:
+                bpy.context.view_layer.objects.active = obj.children[0]  # 将第一个子对象设为活动对象
+                for child in obj.children:
+                    if child.type == 'MESH':
+                        child.select_set(True)  # 选中子级模型对象
+                obj.select_set(False)  # 取消选中父级对象
+                
+                # 合并选中的模型对象
+                bpy.ops.object.join()
+                
+                # 重命名合并后的对象为父级的名称
+                merged_obj = bpy.context.active_object
+                merged_obj.name = obj.name
+                
+                # 保持父级对象的变换
+                bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')  # 清除父级并保持变换结果 
+                
+                # 将合并后的对象移动到“软装”集合中
+                selct_objs_move_to_collection(collection_name)
+                
+                bpy.ops.object.select_all(action='DESELECT')
+
+    # 调用函数以删除所有空对象
+    delete_empty_objects()
+#--------------------------硬装区分天墙地--------------------------
+def yingCom(collection,collection_name):
+    if collection:
+        # 初始化计数器
+        ceiling_count = 0
+        floor_count = 0
+        wall_count = 0
+        
+        # 初始化最低点和最高点
+        min_z = inf
+        max_z = -inf
+        
+        # 遍历集合中的每个对象
+        for obj in collection.objects:
+            # 获取对象的最低和最高点
+            vertices = [obj.matrix_world @ v.co for v in obj.data.vertices]
+            min_z = min(min_z, min(v.z for v in vertices))
+            max_z = max(max_z, max(v.z for v in vertices))
+            
+        # 遍历集合中的每个对象
+        ceiling_objects = []
+        floor_objects = []
+        wall_objects = []
+        for obj in collection.objects:
+            # 获取对象的最低和最高点
+            vertices = [obj.matrix_world @ v.co for v in obj.data.vertices]
+            min_height = min(v.z for v in vertices)
+            max_height = max(v.z for v in vertices)
+            
+            # 判断并将对象添加到相应的列表中
+            if max_height < 0.05:
+                floor_objects.append(obj)
+            elif min_height > 2:
+                ceiling_objects.append(obj)
+            else:
+                wall_objects.append(obj)
+        
+        # 合并 Ceiling 对象
+        if ceiling_objects:
+            bpy.ops.object.select_all(action='DESELECT')
+            for obj in ceiling_objects:
+                obj.select_set(True)
+            bpy.context.view_layer.objects.active = ceiling_objects[0]
+            bpy.ops.object.join()
+            bpy.context.active_object.name = "Ceiling"
+            ceiling_count = len(ceiling_objects)
+        
+        # 合并 Floor 对象
+        if floor_objects:
+            bpy.ops.object.select_all(action='DESELECT')
+            for obj in floor_objects:
+                obj.select_set(True)
+            bpy.context.view_layer.objects.active = floor_objects[0]
+            bpy.ops.object.join()
+            bpy.context.active_object.name = "Floor"
+            floor_count = len(floor_objects)
+        
+        # 合并 Wall 对象
+        if wall_objects:
+            bpy.ops.object.select_all(action='DESELECT')
+            for obj in wall_objects:
+                obj.select_set(True)
+            bpy.context.view_layer.objects.active = wall_objects[0]
+            bpy.ops.object.join()
+            bpy.context.active_object.name = "Wall"
+            wall_count = len(wall_objects)
+        
+        # 打印结果
+        print("合并了 %d 个 Ceiling 对象" % ceiling_count)
+        print("合并了 %d 个 Floor 对象" % floor_count)
+        print("合并了 %d 个 Wall 对象" % wall_count)
+    else:
+        print("没有找到名为 '%s' 的集合" % collection_name)
